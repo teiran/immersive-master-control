@@ -16,8 +16,24 @@ app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 
 // ─── STATE ───────────────────────────────────────────────────
-let sceneData = { trees: 0, flowers: 0, other: 0 };
-let environmentState = { wind: 0, scent: 'off', story: null };
+
+// Scene data from Godot (updated every ~1s poll)
+let sceneData = {
+  // Plant counts (3 scent-mapped types + 1 TBD)
+  flowers: 0,
+  evergreen: 0,
+  thirdPlant: 0,          // TBD — third plant type
+
+  // World state from Godot
+  dayNightCycle: 0,        // 0.0 (midnight) → 0.5 (noon) → 1.0 (midnight)
+  waterCloseness: 0,       // 0–100, how close the player is to water
+  cloudiness: 0,           // 0–100
+  rain: 0,                 // 0–100 intensity
+  onField: false,          // true when player is on open field (kahina source)
+};
+
+// Environment state controlled by master (sent back to Godot)
+let environmentState = { wind: 0, scent: 'off' };
 let connectedClients = new Set();
 
 // ─── WEBSOCKET FOR REAL-TIME UPDATES ─────────────────────────
@@ -49,20 +65,29 @@ function broadcast(type, data) {
 
 // ─── GODOT ENDPOINTS ─────────────────────────────────────────
 
-// Godot sends scene data here
+// Godot polls this endpoint every ~1s with current world state
 app.post('/api/scene', (req, res) => {
-  const { trees, flowers, other } = req.body;
   sceneData = {
-    trees: trees ?? 0,
-    flowers: flowers ?? 0,
-    other: other ?? 0,
+    // Plants
+    flowers: req.body.flowers ?? sceneData.flowers,
+    evergreen: req.body.evergreen ?? sceneData.evergreen,
+    thirdPlant: req.body.thirdPlant ?? sceneData.thirdPlant,
+
+    // World state
+    dayNightCycle: req.body.dayNightCycle ?? sceneData.dayNightCycle,
+    waterCloseness: req.body.waterCloseness ?? sceneData.waterCloseness,
+    cloudiness: req.body.cloudiness ?? sceneData.cloudiness,
+    rain: req.body.rain ?? sceneData.rain,
+    onField: req.body.onField ?? sceneData.onField,
   };
 
-  console.log(`[Godot] Scene update: T:${sceneData.trees} F:${sceneData.flowers} O:${sceneData.other}`);
   broadcast('scene', sceneData);
 
-  // Respond with current environment state so Godot knows wind/scent
-  res.json(environmentState);
+  // Respond with commands for Godot
+  res.json({
+    wind: environmentState.wind,
+    scent: environmentState.scent,
+  });
 });
 
 // Frontend or polling can GET scene data

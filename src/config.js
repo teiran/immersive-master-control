@@ -19,8 +19,8 @@ export const CONFIG = {
   // Arduino serial connection
   SERIAL_BAUD: 9600,
 
-  // Godot polling interval (ms) — or use WebSocket
-  GODOT_POLL_INTERVAL: 4000,
+  // Godot polling interval (ms) — Godot pulls this service at this rate
+  GODOT_POLL_INTERVAL: 1000,
 
   // Motorway track random dim interval range (ms)
   MOTORWAY_DIM_MIN: 3000,
@@ -28,14 +28,12 @@ export const CONFIG = {
 };
 
 // ─── SCENT DEFINITIONS ──────────────────────────────────────
-// Each maps to an Arduino serial command
+// 3 scents mapped to plant types + off. Each maps to an Arduino serial command.
 export const SCENT_TYPES = [
-  { id: 'forest',  label: 'Metsä',  icon: '🌲', cmd: 'S1' },
-  { id: 'flowers', label: 'Kukat',  icon: '🌸', cmd: 'S2' },
-  { id: 'rain',    label: 'Sade',   icon: '🌧', cmd: 'S3' },
-  { id: 'earth',   label: 'Maa',    icon: '🪨', cmd: 'S4' },
-  { id: 'water',   label: 'Vesi',   icon: '💧', cmd: 'S5' },
-  { id: 'off',     label: 'Pois',   icon: '⭕', cmd: 'S0' },
+  { id: 'flowers',   label: 'Kukat',       icon: '🌸', cmd: 'S1', plant: 'flowers' },
+  { id: 'evergreen', label: 'Havumetsä',   icon: '🌲', cmd: 'S2', plant: 'evergreen' },
+  { id: 'third',     label: 'TBD',         icon: '❓', cmd: 'S3', plant: 'thirdPlant' },  // TBD
+  { id: 'off',       label: 'Pois',        icon: '⭕', cmd: 'S0', plant: null },
 ];
 
 // ─── AUDIO LAYER DEFINITIONS ────────────────────────────────
@@ -59,11 +57,12 @@ export const SFX_TRIGGERS = [
 ];
 
 // ─── AUTOMATION RULES ───────────────────────────────────────
-// These define when environment layers auto-trigger
+// These define when environment layers auto-trigger based on Godot scene data
 export const AUTO_RULES = [
-  { id: 'wind_trees',      condition: (scene) => scene.trees > 100,   action: 'wind +20%',           label: 'Trees > 100 → Wind +20%' },
-  { id: 'scent_flowers',   condition: (scene) => scene.flowers > 300, action: 'scent:flowers',       label: 'Flowers > 300 → Scent: Kukat' },
-  { id: 'night_birds',     condition: () => false,                    action: 'mute:linnut',         label: 'Night mode → Linnunlaulu OFF' },
-  { id: 'rain_clouds',     condition: () => false,                    action: 'layer:pilvisyys+40',  label: 'Rain detected → Pilvisyys +40%' },
-  { id: 'image_story',     condition: (_, meta) => meta.hasImages,    action: 'generate:story',      label: 'Image scan → Generate story' },
+  { id: 'scent_flowers',   condition: (scene) => scene.flowers > 100,        action: 'scent:flowers',       label: 'Flowers > 100 → Scent: Kukat' },
+  { id: 'scent_evergreen', condition: (scene) => scene.evergreen > 100,      action: 'scent:evergreen',     label: 'Evergreen > 100 → Scent: Havumetsä' },
+  { id: 'night_birds',     condition: (scene) => scene.dayNightCycle > 0.75, action: 'mute:linnut',         label: 'Night → Linnunlaulu OFF' },
+  { id: 'water_layer',     condition: (scene) => scene.waterCloseness > 50,  action: 'layer:vesi+50',       label: 'Near water → Vesi +50%' },
+  { id: 'rain_clouds',     condition: (scene) => scene.rain > 30,            action: 'layer:pilvisyys+40',  label: 'Rain > 30 → Pilvisyys +40%' },
+  { id: 'field_kahina',    condition: (scene) => scene.onField,              action: 'layer:kahina+60',     label: 'On field → Kahina +60%' },
 ];
