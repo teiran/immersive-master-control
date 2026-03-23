@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Panel, Slider, Btn } from './ui.jsx';
 import { AUDIO_LAYERS, SFX_TRIGGERS } from '../config.js';
 import { theme, fonts } from '../theme.js';
@@ -9,7 +9,35 @@ export function AudioPanel({
   audioMutes, setAudioMutes,
   motorwayAuto, setMotorwayAuto,
   sfxActive, onTriggerSfx,
+  audioEngine,
+  layerFiles, setLayerFiles,
 }) {
+  const [dragOverLayer, setDragOverLayer] = useState(null);
+
+  const handleDrop = async (e, layerId) => {
+    e.preventDefault();
+    setDragOverLayer(null);
+
+    const file = e.dataTransfer.files[0];
+    if (!file || !file.type.startsWith('audio/')) return;
+
+    if (audioEngine) {
+      await audioEngine.addLayerFromFile(layerId, file, {
+        volume: audioLevels[layerId] ?? 0.5,
+      });
+      setLayerFiles(prev => ({ ...prev, [layerId]: file.name }));
+    }
+  };
+
+  const handleDragOver = (e, layerId) => {
+    e.preventDefault();
+    setDragOverLayer(layerId);
+  };
+
+  const handleDragLeave = () => {
+    setDragOverLayer(null);
+  };
+
   return (
     <Panel title="Audio Engine" icon="🎵" status="connected">
       {/* Master Volume */}
@@ -32,54 +60,77 @@ export function AudioPanel({
           fontSize: 9, color: theme.textDim, letterSpacing: '0.1em',
           textTransform: 'uppercase', marginTop: 4,
         }}>
-          Environment Layers
+          Environment Layers — drop audio files onto any layer
         </div>
 
-        {AUDIO_LAYERS.map(layer => (
-          <div key={layer.id} style={{
-            display: 'flex', alignItems: 'center', gap: 8,
-            opacity: audioMutes[layer.id] ? 0.35 : 1,
-            transition: 'opacity 0.3s',
-          }}>
-            <button
-              onClick={() => setAudioMutes(prev => ({ ...prev, [layer.id]: !prev[layer.id] }))}
+        {AUDIO_LAYERS.map(layer => {
+          const isDragOver = dragOverLayer === layer.id;
+          const hasFile = !!layerFiles[layer.id];
+
+          return (
+            <div
+              key={layer.id}
+              onDrop={(e) => handleDrop(e, layer.id)}
+              onDragOver={(e) => handleDragOver(e, layer.id)}
+              onDragLeave={handleDragLeave}
               style={{
-                background: audioMutes[layer.id] ? theme.danger + '33' : 'transparent',
-                border: `1px solid ${audioMutes[layer.id] ? theme.danger : theme.panelBorder}`,
-                color: audioMutes[layer.id] ? theme.danger : theme.textDim,
-                padding: '2px 6px', borderRadius: 3, fontFamily: fonts.mono,
-                fontSize: 9, cursor: 'pointer', minWidth: 22,
+                display: 'flex', alignItems: 'center', gap: 8,
+                opacity: audioMutes[layer.id] ? 0.35 : 1,
+                transition: 'all 0.2s',
+                padding: '2px 4px',
+                borderRadius: 4,
+                background: isDragOver ? layer.color + '22' : 'transparent',
+                outline: isDragOver ? `2px dashed ${layer.color}` : 'none',
               }}
             >
-              {audioMutes[layer.id] ? 'M' : '▶'}
-            </button>
-            <div style={{
-              width: 6, height: 6, borderRadius: '50%',
-              background: layer.color, flexShrink: 0,
-            }} />
-            <span style={{ fontSize: 10, color: theme.text, minWidth: 100 }}>
-              {layer.label}
-            </span>
-            <div style={{ flex: 1 }}>
-              <Slider
-                value={audioLevels[layer.id]}
-                onChange={(v) => setAudioLevels(prev => ({ ...prev, [layer.id]: v }))}
-                color={layer.color}
-                showValue
-              />
-            </div>
-            {layer.id === 'moottoritie' && (
-              <Btn
-                small
-                active={motorwayAuto}
-                onClick={() => setMotorwayAuto(!motorwayAuto)}
-                color={theme.warn}
+              <button
+                onClick={() => setAudioMutes(prev => ({ ...prev, [layer.id]: !prev[layer.id] }))}
+                style={{
+                  background: audioMutes[layer.id] ? theme.danger + '33' : 'transparent',
+                  border: `1px solid ${audioMutes[layer.id] ? theme.danger : theme.panelBorder}`,
+                  color: audioMutes[layer.id] ? theme.danger : theme.textDim,
+                  padding: '2px 6px', borderRadius: 3, fontFamily: fonts.mono,
+                  fontSize: 9, cursor: 'pointer', minWidth: 22,
+                }}
               >
-                {motorwayAuto ? 'AUTO' : 'MAN'}
-              </Btn>
-            )}
-          </div>
-        ))}
+                {audioMutes[layer.id] ? 'M' : '▶'}
+              </button>
+              <div style={{
+                width: 6, height: 6, borderRadius: '50%',
+                background: hasFile ? layer.color : theme.textDim + '44',
+                flexShrink: 0,
+              }} />
+              <div style={{ minWidth: 100 }}>
+                <span style={{ fontSize: 10, color: theme.text, display: 'block' }}>
+                  {layer.label}
+                </span>
+                {hasFile && (
+                  <span style={{ fontSize: 8, color: theme.textDim, display: 'block' }}>
+                    {layerFiles[layer.id]}
+                  </span>
+                )}
+              </div>
+              <div style={{ flex: 1 }}>
+                <Slider
+                  value={audioLevels[layer.id]}
+                  onChange={(v) => setAudioLevels(prev => ({ ...prev, [layer.id]: v }))}
+                  color={layer.color}
+                  showValue
+                />
+              </div>
+              {layer.id === 'moottoritie' && (
+                <Btn
+                  small
+                  active={motorwayAuto}
+                  onClick={() => setMotorwayAuto(!motorwayAuto)}
+                  color={theme.warn}
+                >
+                  {motorwayAuto ? 'AUTO' : 'MAN'}
+                </Btn>
+              )}
+            </div>
+          );
+        })}
       </div>
 
       {/* SFX Triggers */}

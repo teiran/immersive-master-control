@@ -3,6 +3,7 @@ import { CONFIG, AUDIO_LAYERS } from './config.js';
 import { theme, fonts } from './theme.js';
 import { createLogger } from './utils/logger.js';
 import { SerialManager } from './utils/serial.js';
+import { AudioEngine } from './utils/audio.js';
 import * as api from './utils/api.js';
 
 // Components
@@ -21,7 +22,10 @@ export default function App() {
   const [rpiConnected, setRpiConnected] = useState(false);
 
   // ─── SCENE DATA ─────────────────────────────────────────
-  const [sceneData, setSceneData] = useState({ trees: 0, flowers: 0, other: 0 });
+  const [sceneData, setSceneData] = useState({
+    flowers: 0, evergreen: 0, thirdPlant: 0,
+    dayNightCycle: 0, waterCloseness: 0, cloudiness: 0, rain: 0, onField: false,
+  });
   const [godotLog, setGodotLog] = useState([]);
 
   // ─── WIND ───────────────────────────────────────────────
@@ -55,57 +59,82 @@ export default function App() {
   ]);
   const log = useCallback(createLogger(setSystemLog), []);
 
+  // ─── AUDIO FILE TRACKING ────────────────────────────────
+  const [layerFiles, setLayerFiles] = useState({});
+
   // ─── REFS ───────────────────────────────────────────────
   const serial = useRef(new SerialManager(CONFIG.SERIAL_BAUD));
+  const audioEngineRef = useRef(new AudioEngine());
   const motorwayTimer = useRef(null);
 
-  // ─── GODOT POLLING ──────────────────────────────────────
+  // ─── AUDIO ENGINE SYNC ─────────────────────────────────
   useEffect(() => {
-    let active = true;
+    const engine = audioEngineRef.current;
+    for (const [id, vol] of Object.entries(audioLevels)) {
+      engine.setLayerVolume(id, vol / 100);
+    }
+  }, [audioLevels]);
 
-    const poll = async () => {
-      try {
-        const data = await api.fetchGodotScene();
-        if (!active) return;
+  useEffect(() => {
+    const engine = audioEngineRef.current;
+    for (const [id, muted] of Object.entries(audioMutes)) {
+      engine.setLayerMute(id, muted);
+    }
+  }, [audioMutes]);
 
-        setSceneData(data);
-        setGodotConnected(true);
+  useEffect(() => {
+    audioEngineRef.current.setMasterVolume(masterVolume / 100);
+  }, [masterVolume]);
 
-        // Auto-calculate wind from plant density
-        if (windMode === 'auto') {
-          const total = data.trees + data.flowers + data.other;
-          setWindAutoValue(Math.min(100, Math.floor((total / 800) * 100)));
-        }
+  // ─── WEBSOCKET — RECEIVE SCENE DATA FROM SERVER ─────────
+  // Scene data only changes when Godot actually POSTs to /api/scene.
+  // No simulation, no random data. Values stay until next real update.
+  const wsRef = useRef(null);
 
-        setGodotLog(prev => [...prev.slice(-8), {
-          time: new Date().toLocaleTimeString(),
-          data: `T:${data.trees} F:${data.flowers} O:${data.other}`,
-        }]);
-      } catch {
-        if (!active) return;
-        // If Godot unreachable, use simulation for development
+  useEffect(() => {
+    let closed = false;
+
+    function connect() {
+      if (closed) return;
+      const ws = new WebSocket(`ws://${location.hostname}:3001/ws`);
+      wsRef.current = ws;
+
+      ws.onopen = () => setGodotConnected(true);
+
+      ws.onclose = () => {
         setGodotConnected(false);
-        const mockData = {
-          trees: Math.floor(Math.random() * 200) + 50,
-          flowers: Math.floor(Math.random() * 500) + 100,
-          other: Math.floor(Math.random() * 150) + 20,
-        };
-        setSceneData(mockData);
-        if (windMode === 'auto') {
-          const total = mockData.trees + mockData.flowers + mockData.other;
-          setWindAutoValue(Math.min(100, Math.floor((total / 800) * 100)));
-        }
-        setGodotLog(prev => [...prev.slice(-8), {
-          time: new Date().toLocaleTimeString(),
-          data: `[SIM] T:${mockData.trees} F:${mockData.flowers} O:${mockData.other}`,
-        }]);
-      }
-    };
+        // Reconnect after 3s if not intentionally closed
+        if (!closed) setTimeout(connect, 3000);
+      };
 
-    poll();
-    const iv = setInterval(poll, CONFIG.GODOT_POLL_INTERVAL);
-    return () => { active = false; clearInterval(iv); };
-  }, [windMode]);
+      ws.onmessage = (event) => {
+        const msg = JSON.parse(event.data);
+
+        if (msg.type === 'scene') {
+          setSceneData(msg.data);
+          setGodotLog(prev => [...prev.slice(-8), {
+            time: new Date().toLocaleTimeString(),
+            data: `F:${msg.data.flowers} E:${msg.data.evergreen} T:${msg.data.thirdPlant}`,
+          }]);
+        }
+      };
+    }
+
+    connect();
+
+    return () => {
+      closed = true;
+      wsRef.current?.close();
+    };
+  }, []);
+
+  // ─── WIND AUTO — derived from scene data ────────────────
+  useEffect(() => {
+    if (windMode === 'auto') {
+      const total = sceneData.flowers + sceneData.evergreen + sceneData.thirdPlant;
+      setWindAutoValue(Math.min(100, Math.floor((total / 800) * 100)));
+    }
+  }, [sceneData, windMode]);
 
   // ─── WIND → RPI ─────────────────────────────────────────
   useEffect(() => {
@@ -115,7 +144,6 @@ export default function App() {
       .then(() => setRpiConnected(true))
       .catch(() => {
         setRpiConnected(false);
-        // Silent fail in dev — RPi might not be available
       });
   }, [windIntensity, windAutoValue, windMode]);
 
@@ -273,6 +301,9 @@ export default function App() {
           setMotorwayAuto={setMotorwayAuto}
           sfxActive={sfxActive}
           onTriggerSfx={handleTriggerSfx}
+          audioEngine={audioEngineRef.current}
+          layerFiles={layerFiles}
+          setLayerFiles={setLayerFiles}
         />
 
         {/* Right column */}

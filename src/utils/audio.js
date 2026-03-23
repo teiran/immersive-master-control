@@ -73,6 +73,40 @@ export class AudioEngine {
     }
   }
 
+  // Load a layer from a dropped File object and start playing
+  async addLayerFromFile(id, file, { loop = true, volume = 0.5 } = {}) {
+    await this.init();
+
+    const arrayBuffer = await file.arrayBuffer();
+    const buffer = await this.ctx.decodeAudioData(arrayBuffer);
+
+    // Stop existing layer if playing
+    this.stopLayer(id);
+
+    const existing = this.layers.get(id);
+    const gainNode = existing?.gainNode ?? this.ctx.createGain();
+    if (!existing) gainNode.connect(this.masterGain);
+
+    const prevVolume = existing?.volume ?? volume;
+    const prevMuted = existing?.muted ?? false;
+    gainNode.gain.value = prevMuted ? 0 : prevVolume;
+
+    this.layers.set(id, {
+      buffer,
+      gainNode,
+      source: null,
+      loop,
+      playing: false,
+      volume: prevVolume,
+      muted: prevMuted,
+      fileName: file.name,
+    });
+
+    // Auto-play the dropped file
+    this.playLayer(id);
+    return true;
+  }
+
   playLayer(id) {
     const layer = this.layers.get(id);
     if (!layer || !layer.buffer || layer.playing) return;

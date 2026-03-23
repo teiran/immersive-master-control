@@ -3,13 +3,13 @@ import { Panel } from './ui.jsx';
 import { theme, fonts } from '../theme.js';
 
 const PLANT_TYPES = [
-  { key: 'trees',   label: 'Puut',  color: '#4a7c59', icon: '🌳' },
-  { key: 'flowers', label: 'Kukat', color: '#c474a0', icon: '🌸' },
-  { key: 'other',   label: 'Muut',  color: '#7ca5b8', icon: '🌿' },
+  { key: 'flowers',    label: 'Kukat',     color: '#c474a0', icon: '🌸' },
+  { key: 'evergreen',  label: 'Havupuut',  color: '#4a7c59', icon: '🌲' },
+  { key: 'thirdPlant', label: 'TBD',       color: '#7ca5b8', icon: '❓' },
 ];
 
 export function GodotPanel({ connected, sceneData, godotLog }) {
-  const total = sceneData.trees + sceneData.flowers + sceneData.other;
+  const total = (sceneData.flowers || 0) + (sceneData.evergreen || 0) + (sceneData.thirdPlant || 0);
 
   return (
     <Panel title="Godot Scene" icon="🌿" status={connected ? 'connected' : 'error'}>
