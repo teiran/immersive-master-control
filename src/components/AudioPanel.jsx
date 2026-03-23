@@ -394,13 +394,25 @@ function TrackRow({
             Load file
           </button>
         )}
-        <div style={{ flex: 1 }}>
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
           <Slider
             value={track.volume}
             onChange={onVolumeChange}
             color={track.color}
             showValue
           />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <span style={{ fontSize: 8, color: theme.textDim, minWidth: 18 }}>spd</span>
+            <div style={{ flex: 1 }}>
+              <Slider
+                value={track.speed ?? 100}
+                onChange={(v) => onUpdate({ speed: v })}
+                min={25} max={200}
+                color={theme.textDim}
+                showValue
+              />
+            </div>
+          </div>
         </div>
       </div>
 
@@ -467,6 +479,42 @@ function TrackRow({
                     type="checkbox"
                     checked={!!track.autoDimRandom}
                     onChange={e => onUpdate({ autoDimRandom: e.target.checked })}
+                  />
+                  <span style={{ fontSize: 9, color: theme.textDim }}>
+                    Random direction changes
+                  </span>
+                </label>
+              </div>
+            )}
+          </div>
+
+          {/* Auto-speed */}
+          <div style={{
+            padding: '6px 0', borderTop: `1px solid ${theme.panelBorder}33`,
+          }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={!!track.autoSpeed}
+                onChange={e => onUpdate({ autoSpeed: e.target.checked })}
+              />
+              <span style={{ fontSize: 9, color: theme.textDim }}>
+                Auto-speed — smooth speed drift
+              </span>
+            </label>
+            {track.autoSpeed && (
+              <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 5 }}>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  <NumberInput label="Min %" value={track.autoSpeedMin ?? 80}
+                    onChange={v => onUpdate({ autoSpeedMin: v })} min={25} max={200} />
+                  <NumberInput label="Max %" value={track.autoSpeedMax ?? 120}
+                    onChange={v => onUpdate({ autoSpeedMax: v })} min={25} max={200} />
+                </div>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={!!track.autoSpeedRandom}
+                    onChange={e => onUpdate({ autoSpeedRandom: e.target.checked })}
                   />
                   <span style={{ fontSize: 9, color: theme.textDim }}>
                     Random direction changes

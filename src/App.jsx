@@ -115,8 +115,11 @@ export default function App() {
           volume: t.volume, muted: t.muted,
           fileName: t.fileName, loaded: t.loaded,
           serverPath: t.serverPath || null,
+          speed: t.speed ?? 100,
           autoDim: t.autoDim || false, autoDimRandom: t.autoDimRandom || false,
           autoDimMin: t.autoDimMin, autoDimMax: t.autoDimMax, autoDimSpeed: t.autoDimSpeed,
+          autoSpeed: t.autoSpeed || false, autoSpeedRandom: t.autoSpeedRandom || false,
+          autoSpeedMin: t.autoSpeedMin, autoSpeedMax: t.autoSpeedMax,
           intensifyTarget: t.intensifyTarget || null,
           intensifyAmount: t.intensifyAmount, intensifyDuration: t.intensifyDuration,
         })),
@@ -134,6 +137,7 @@ export default function App() {
     for (const track of tracks) {
       engine.setLayerVolume(track.id, (track.volume ?? 50) / 100);
       engine.setLayerMute(track.id, !!track.muted);
+      engine.setLayerSpeed(track.id, (track.speed ?? 100) / 100);
     }
   }, [tracks]);
 
@@ -240,17 +244,19 @@ export default function App() {
     return () => window.removeEventListener('keydown', handler);
   }, [tracks]);
 
-  // ─── AUTO-DIM — smooth 1% drift up/down per track ──────
-  // Each track drifts 1% per step. Direction reverses at min/max.
-  // If autoDimRandom is on, direction may randomly flip mid-drift.
+  // ─── AUTO-DRIFT — smooth 1-unit drift for volume and/or speed ──
+  // Each track drifts 1 unit per step. Direction reverses at min/max.
+  // If random is on, direction may randomly flip mid-drift.
   const dimIntervals = useRef({});
-  const dimDirections = useRef({}); // track id → 1 or -1
+  const dimDirections = useRef({}); // track id → { vol: 1|-1, speed: 1|-1 }
 
   useEffect(() => {
-    const activeDimTracks = tracks.filter(t => t.autoDim && t.loaded && !t.muted && t.playing !== false);
+    const activeDimTracks = tracks.filter(t =>
+      (t.autoDim || t.autoSpeed) && t.loaded && !t.muted && t.playing !== false
+    );
     const activeIds = new Set(activeDimTracks.map(t => t.id));
 
-    // Clear intervals for tracks that no longer need dimming
+    // Clear intervals for tracks that no longer need drifting
     for (const id of Object.keys(dimIntervals.current)) {
       if (!activeIds.has(id)) {
         clearInterval(dimIntervals.current[id]);
@@ -259,38 +265,56 @@ export default function App() {
       }
     }
 
-    // Start intervals for tracks that need dimming
+    // Start intervals for tracks that need drifting
     for (const track of activeDimTracks) {
       if (dimIntervals.current[track.id]) continue;
 
-      // Initialize direction randomly
       if (!dimDirections.current[track.id]) {
-        dimDirections.current[track.id] = Math.random() > 0.5 ? 1 : -1;
+        dimDirections.current[track.id] = {
+          vol: Math.random() > 0.5 ? 1 : -1,
+          speed: Math.random() > 0.5 ? 1 : -1,
+        };
       }
 
-      const stepMs = track.autoDimSpeed ?? 200; // ms per 1% step
+      const stepMs = track.autoDimSpeed ?? 200;
 
       dimIntervals.current[track.id] = setInterval(() => {
         setTracks(prev => prev.map(t => {
-          if (t.id !== track.id || !t.autoDim) return t;
+          if (t.id !== track.id) return t;
+          const dirs = dimDirections.current[t.id];
+          const updates = {};
 
-          const min = t.autoDimMin ?? 10;
-          const max = t.autoDimMax ?? 80;
-          let dir = dimDirections.current[t.id] || 1;
-          let vol = t.volume ?? 50;
+          // Volume drift
+          if (t.autoDim) {
+            const min = t.autoDimMin ?? 10;
+            const max = t.autoDimMax ?? 80;
+            let vol = t.volume ?? 50;
+            let vDir = dirs.vol || 1;
 
-          // Reverse at boundaries
-          if (vol >= max) dir = -1;
-          else if (vol <= min) dir = 1;
-          // Random direction change (if enabled, ~5% chance per step)
-          else if (t.autoDimRandom && Math.random() < 0.05) {
-            dir = -dir;
+            if (vol >= max) vDir = -1;
+            else if (vol <= min) vDir = 1;
+            else if (t.autoDimRandom && Math.random() < 0.05) vDir = -vDir;
+
+            dirs.vol = vDir;
+            updates.volume = Math.min(max, Math.max(min, vol + vDir));
           }
 
-          dimDirections.current[t.id] = dir;
-          vol = Math.min(max, Math.max(min, vol + dir));
+          // Speed drift
+          if (t.autoSpeed) {
+            const sMin = t.autoSpeedMin ?? 80;
+            const sMax = t.autoSpeedMax ?? 120;
+            let spd = t.speed ?? 100;
+            let sDir = dirs.speed || 1;
 
-          return { ...t, volume: vol };
+            if (spd >= sMax) sDir = -1;
+            else if (spd <= sMin) sDir = 1;
+            else if (t.autoSpeedRandom && Math.random() < 0.05) sDir = -sDir;
+
+            dirs.speed = sDir;
+            updates.speed = Math.min(sMax, Math.max(sMin, spd + sDir));
+          }
+
+          return { ...t, ...updates };
         }));
       }, stepMs);
     }
@@ -299,7 +323,7 @@ export default function App() {
       for (const iv of Object.values(dimIntervals.current)) clearInterval(iv);
       dimIntervals.current = {};
     };
-  }, [tracks.map(t => `${t.id}:${t.autoDim}:${t.loaded}:${t.muted}:${t.playing}:${t.autoDimSpeed}`).join(',')]);
+  }, [tracks.map(t => `${t.id}:${t.autoDim}:${t.autoSpeed}:${t.loaded}:${t.muted}:${t.playing}:${t.autoDimSpeed}`).join(',')]);
 
   // ─── TRIGGER INTENSIFY — triggers can smoothly boost a target track
   const intensifyTimers = useRef({});

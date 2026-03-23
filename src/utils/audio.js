@@ -118,6 +118,7 @@ export class AudioEngine {
     const source = this.ctx.createBufferSource();
     source.buffer = layer.buffer;
     source.loop = layer.loop;
+    source.playbackRate.value = layer.speed ?? 1.0;
     source.connect(layer.gainNode);
     source.start(0);
 
@@ -169,6 +170,20 @@ export class AudioEngine {
       targetVol,
       this.ctx.currentTime + 0.2
     );
+  }
+
+  // Smooth speed transition (playbackRate: 0.5 = half, 1 = normal, 2 = double)
+  setLayerSpeed(id, rate, fadeTime = 0.3) {
+    const layer = this.layers.get(id);
+    if (!layer) return;
+
+    layer.speed = rate;
+    if (layer.source) {
+      layer.source.playbackRate.linearRampToValueAtTime(
+        rate,
+        this.ctx.currentTime + fadeTime
+      );
+    }
   }
 
   setMasterVolume(volume, fadeTime = 0.3) {
