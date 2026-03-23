@@ -22,6 +22,9 @@ export const CONFIG = {
   // Godot polling interval (ms) — Godot pulls this service at this rate
   GODOT_POLL_INTERVAL: 1000,
 
+  // Scent auto-cycle interval (ms) — each cycle distributes motor time by plant %
+  SCENT_CYCLE_INTERVAL: 10000,
+
   // Motorway track random dim interval range (ms)
   MOTORWAY_DIM_MIN: 3000,
   MOTORWAY_DIM_MAX: 8000,

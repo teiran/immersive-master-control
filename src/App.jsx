@@ -35,6 +35,8 @@ export default function App() {
 
   // ─── SMELL ──────────────────────────────────────────────
   const [activeScent, setActiveScent] = useState('off');
+  const [scentMode, setScentMode] = useState('manual'); // 'manual' | 'auto'
+  const [scentPercentages, setScentPercentages] = useState({ flowers: 0, evergreen: 0, thirdPlant: 0 });
 
   // ─── AUDIO ──────────────────────────────────────────────
   const [audioLevels, setAudioLevels] = useState(
@@ -66,6 +68,7 @@ export default function App() {
   const serial = useRef(new SerialManager(CONFIG.SERIAL_BAUD));
   const audioEngineRef = useRef(new AudioEngine());
   const motorwayTimer = useRef(null);
+  const scentTimers = useRef([]);
 
   // ─── AUDIO ENGINE SYNC ─────────────────────────────────
   useEffect(() => {
@@ -161,6 +164,64 @@ export default function App() {
     }
     return () => clearTimeout(motorwayTimer.current);
   }, [motorwayAuto, audioMutes.moottoritie]);
+
+  // ─── SCENT AUTO CYCLE ───────────────────────────────────
+  // Every SCENT_CYCLE_INTERVAL, calculate plant percentages and
+  // run each scent motor for its proportional share of the cycle.
+  useEffect(() => {
+    if (scentMode !== 'auto') return;
+
+    const clearTimers = () => scentTimers.current.forEach(t => clearTimeout(t));
+
+    const cycle = () => {
+      clearTimers();
+      scentTimers.current = [];
+
+      const total = sceneData.flowers + sceneData.evergreen + sceneData.thirdPlant;
+      if (total === 0) {
+        serial.current.send('S0');
+        setActiveScent('off');
+        setScentPercentages({ flowers: 0, evergreen: 0, thirdPlant: 0 });
+        return;
+      }
+
+      const pct = {
+        flowers: sceneData.flowers / total,
+        evergreen: sceneData.evergreen / total,
+        thirdPlant: sceneData.thirdPlant / total,
+      };
+      setScentPercentages({
+        flowers: Math.round(pct.flowers * 100),
+        evergreen: Math.round(pct.evergreen * 100),
+        thirdPlant: Math.round(pct.thirdPlant * 100),
+      });
+
+      const interval = CONFIG.SCENT_CYCLE_INTERVAL;
+      const schedule = [
+        { cmd: 'S1', id: 'flowers',   duration: pct.flowers * interval },
+        { cmd: 'S2', id: 'evergreen', duration: pct.evergreen * interval },
+        { cmd: 'S3', id: 'third',     duration: pct.thirdPlant * interval },
+      ].filter(s => s.duration > 200); // skip if less than 200ms
+
+      let offset = 0;
+      for (const step of schedule) {
+        const t = setTimeout(() => {
+          serial.current.send(step.cmd);
+          setActiveScent(step.id);
+        }, offset);
+        scentTimers.current.push(t);
+        offset += step.duration;
+      }
+    };
+
+    cycle();
+    const iv = setInterval(cycle, CONFIG.SCENT_CYCLE_INTERVAL);
+
+    return () => {
+      clearInterval(iv);
+      scentTimers.current.forEach(t => clearTimeout(t));
+    };
+  }, [scentMode, sceneData]);
 
   // ─── SERIAL CONNECT ─────────────────────────────────────
   const connectSerial = async () => {
@@ -323,6 +384,9 @@ export default function App() {
           onConnect={connectSerial}
           activeScent={activeScent}
           onScentSelect={handleScentSelect}
+          scentMode={scentMode}
+          setScentMode={setScentMode}
+          scentPercentages={scentPercentages}
         />
 
         <StoryPanel
