@@ -8,12 +8,27 @@ import express from 'express';
 import cors from 'cors';
 import { createServer } from 'http';
 import { WebSocketServer } from 'ws';
+import multer from 'multer';
+import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'fs';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const DATA_DIR = join(__dirname, '..', 'data');
+const AUDIO_DIR = join(DATA_DIR, 'audio');
+const STATE_FILE = join(DATA_DIR, 'state.json');
+
+// Ensure data directories exist
+mkdirSync(AUDIO_DIR, { recursive: true });
 
 const app = express();
 const PORT = process.env.PORT || 3001;
 
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
+
+// Serve uploaded audio files
+app.use('/data/audio', express.static(AUDIO_DIR));
 
 // ─── STATE ───────────────────────────────────────────────────
 
@@ -175,6 +190,56 @@ app.post('/api/tts', async (req, res) => {
   } catch (err) {
     console.error(`[TTS] Error: ${err.message}`);
     res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── AUDIO UPLOAD & STATE PERSISTENCE ────────────────────────
+
+const upload = multer({
+  storage: multer.diskStorage({
+    destination: AUDIO_DIR,
+    filename: (req, file, cb) => {
+      // Keep original name, add timestamp to avoid collisions
+      const ext = file.originalname.split('.').pop();
+      const base = file.originalname.replace(/\.[^.]+$/, '').replace(/[^a-zA-Z0-9_-]/g, '_');
+      cb(null, `${base}_${Date.now()}.${ext}`);
+    },
+  }),
+  limits: { fileSize: 100 * 1024 * 1024 }, // 100MB max
+});
+
+// Upload audio file → saved to data/audio/, returns server path
+app.post('/api/audio/upload', upload.single('audio'), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No file' });
+  const serverPath = `/data/audio/${req.file.filename}`;
+  console.log(`[Audio] Uploaded: ${req.file.originalname} → ${serverPath}`);
+  res.json({ ok: true, path: serverPath, originalName: req.file.originalname });
+});
+
+// Save full app state (tracks, volumes, modes, etc.)
+app.post('/api/state', (req, res) => {
+  try {
+    writeFileSync(STATE_FILE, JSON.stringify(req.body, null, 2));
+    console.log('[State] Saved');
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[State] Save error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Load saved state
+app.get('/api/state', (req, res) => {
+  try {
+    if (existsSync(STATE_FILE)) {
+      const state = JSON.parse(readFileSync(STATE_FILE, 'utf-8'));
+      res.json(state);
+    } else {
+      res.json(null);
+    }
+  } catch (err) {
+    console.error('[State] Load error:', err.message);
+    res.json(null);
   }
 });
 

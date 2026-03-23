@@ -70,6 +70,41 @@ export async function checkRpiHealth() {
   return res.ok;
 }
 
+// ─── AUDIO UPLOAD & STATE PERSISTENCE ────────────────────────
+
+const SERVER = `http://${location.hostname}:3001`;
+
+/**
+ * Upload an audio file to the server. Returns the server path.
+ */
+export async function uploadAudio(file) {
+  const form = new FormData();
+  form.append('audio', file);
+  const res = await fetch(`${SERVER}/api/audio/upload`, { method: 'POST', body: form });
+  if (!res.ok) throw new Error(`Upload failed: ${res.status}`);
+  return res.json(); // { ok, path, originalName }
+}
+
+/**
+ * Save full app state to server.
+ */
+export async function saveState(state) {
+  const res = await fetch(`${SERVER}/api/state`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(state),
+  });
+  return res.json();
+}
+
+/**
+ * Load saved app state from server. Returns null if none saved.
+ */
+export async function loadState() {
+  const res = await fetch(`${SERVER}/api/state`);
+  return res.json();
+}
+
 // ─── AI STORY GENERATION ────────────────────────────────────
 
 /**

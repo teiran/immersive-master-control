@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { CONFIG, AUDIO_LAYERS } from './config.js';
+import { CONFIG, DEFAULT_TRACKS } from './config.js';
 import { theme, fonts } from './theme.js';
 import { createLogger } from './utils/logger.js';
 import { SerialManager } from './utils/serial.js';
@@ -39,15 +39,10 @@ export default function App() {
   const [scentPercentages, setScentPercentages] = useState({ flowers: 0, evergreen: 0, thirdPlant: 0 });
 
   // ─── AUDIO ──────────────────────────────────────────────
-  const [audioLevels, setAudioLevels] = useState(
-    Object.fromEntries(AUDIO_LAYERS.map(l => [l.id, l.id === 'base' ? 70 : 50]))
-  );
-  const [audioMutes, setAudioMutes] = useState(
-    Object.fromEntries(AUDIO_LAYERS.map(l => [l.id, false]))
+  const [tracks, setTracks] = useState(
+    DEFAULT_TRACKS.map(t => ({ ...t, volume: t.id === 'base' ? 70 : 50, muted: false, fileName: null, loaded: false }))
   );
   const [masterVolume, setMasterVolume] = useState(80);
-  const [motorwayAuto, setMotorwayAuto] = useState(true);
-  const [sfxActive, setSfxActive] = useState(null);
 
   // ─── AI STORY ───────────────────────────────────────────
   const [storyImages, setStoryImages] = useState([]);
@@ -61,33 +56,117 @@ export default function App() {
   ]);
   const log = useCallback(createLogger(setSystemLog), []);
 
-  // ─── AUDIO FILE TRACKING ────────────────────────────────
-  const [layerFiles, setLayerFiles] = useState({});
-
   // ─── REFS ───────────────────────────────────────────────
   const serial = useRef(new SerialManager(CONFIG.SERIAL_BAUD));
   const audioEngineRef = useRef(new AudioEngine());
-  const motorwayTimer = useRef(null);
   const scentTimers = useRef([]);
+  const stateLoaded = useRef(false);
+  const saveTimer = useRef(null);
+
+  // ─── RESTORE SAVED STATE ON STARTUP ─────────────────────
+  useEffect(() => {
+    (async () => {
+      try {
+        const saved = await api.loadState();
+        if (!saved) { stateLoaded.current = true; return; }
+
+        if (saved.tracks) setTracks(saved.tracks);
+        if (saved.masterVolume != null) setMasterVolume(saved.masterVolume);
+        if (saved.windMode) setWindMode(saved.windMode);
+        if (saved.windIntensity != null) setWindIntensity(saved.windIntensity);
+        if (saved.scentMode) setScentMode(saved.scentMode);
+
+        // Re-load audio files from server
+        const engine = audioEngineRef.current;
+        await engine.init();
+        for (const track of (saved.tracks || [])) {
+          if (track.serverPath) {
+            try {
+              const url = `http://${location.hostname}:3001${track.serverPath}`;
+              await engine.addLayer(track.id, url, {
+                loop: track.type === 'loop',
+                volume: (track.volume ?? 50) / 100,
+              });
+              if (track.type === 'loop') engine.playLayer(track.id);
+            } catch (err) {
+              console.warn(`[Audio] Failed to restore ${track.label}:`, err.message);
+            }
+          }
+        }
+
+        console.log('[State] Restored');
+      } catch (err) {
+        console.warn('[State] Could not restore:', err.message);
+      }
+      stateLoaded.current = true;
+    })();
+  }, []);
+
+  // ─── AUTO-SAVE STATE (debounced 2s after any change) ───
+  useEffect(() => {
+    if (!stateLoaded.current) return;
+
+    clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(() => {
+      api.saveState({
+        tracks: tracks.map(t => ({
+          id: t.id, label: t.label, type: t.type, color: t.color,
+          sceneLink: t.sceneLink, triggerKey: t.triggerKey,
+          volume: t.volume, muted: t.muted,
+          fileName: t.fileName, loaded: t.loaded,
+          serverPath: t.serverPath || null,
+          autoDim: t.autoDim || false, autoDimRandom: t.autoDimRandom || false,
+          autoDimMin: t.autoDimMin, autoDimMax: t.autoDimMax, autoDimSpeed: t.autoDimSpeed,
+          intensifyTarget: t.intensifyTarget || null,
+          intensifyAmount: t.intensifyAmount, intensifyDuration: t.intensifyDuration,
+        })),
+        masterVolume,
+        windMode,
+        windIntensity,
+        scentMode,
+      }).catch(() => {});
+    }, 2000);
+  }, [tracks, masterVolume, windMode, windIntensity, scentMode]);
 
   // ─── AUDIO ENGINE SYNC ─────────────────────────────────
   useEffect(() => {
     const engine = audioEngineRef.current;
-    for (const [id, vol] of Object.entries(audioLevels)) {
-      engine.setLayerVolume(id, vol / 100);
+    for (const track of tracks) {
+      engine.setLayerVolume(track.id, (track.volume ?? 50) / 100);
+      engine.setLayerMute(track.id, !!track.muted);
     }
-  }, [audioLevels]);
-
-  useEffect(() => {
-    const engine = audioEngineRef.current;
-    for (const [id, muted] of Object.entries(audioMutes)) {
-      engine.setLayerMute(id, muted);
-    }
-  }, [audioMutes]);
+  }, [tracks]);
 
   useEffect(() => {
     audioEngineRef.current.setMasterVolume(masterVolume / 100);
   }, [masterVolume]);
+
+  // ─── SCENE-LINKED AUTO VOLUME ─────────────────────────
+  // Tracks with a sceneLink get their volume driven by scene data
+  useEffect(() => {
+    setTracks(prev => prev.map(track => {
+      if (!track.sceneLink || track.muted) return track;
+
+      let sceneVal = sceneData[track.sceneLink];
+      if (sceneVal === undefined) return track;
+
+      // Boolean scene values (onField) → 0 or 80
+      if (typeof sceneVal === 'boolean') {
+        sceneVal = sceneVal ? 80 : 0;
+      }
+      // dayNightCycle (0–1) → birds louder during day, quieter at night
+      else if (track.sceneLink === 'dayNightCycle') {
+        // 0=midnight, 0.5=noon → volume peaks at noon
+        sceneVal = Math.round((1 - Math.abs(sceneVal - 0.5) * 2) * 80);
+      }
+      // Other numeric values (0–100) → map to volume
+      else {
+        sceneVal = Math.min(100, Math.max(0, Math.round(sceneVal * 0.8)));
+      }
+
+      return { ...track, volume: sceneVal };
+    }));
+  }, [sceneData]);
 
   // ─── WEBSOCKET — RECEIVE SCENE DATA FROM SERVER ─────────
   // Scene data only changes when Godot actually POSTs to /api/scene.
@@ -150,20 +229,125 @@ export default function App() {
       });
   }, [windIntensity, windAutoValue, windMode]);
 
-  // ─── MOTORWAY AUTO DIM ──────────────────────────────────
+  // ─── KEYBOARD TRIGGERS ─────────────────────────────────
   useEffect(() => {
-    if (motorwayAuto && !audioMutes.moottoritie) {
-      const tick = () => {
-        const target = Math.floor(Math.random() * 60) + 10;
-        setAudioLevels(prev => ({ ...prev, moottoritie: target }));
-        motorwayTimer.current = setTimeout(tick,
-          CONFIG.MOTORWAY_DIM_MIN + Math.random() * (CONFIG.MOTORWAY_DIM_MAX - CONFIG.MOTORWAY_DIM_MIN)
-        );
-      };
-      tick();
+    const handler = (e) => {
+      const key = e.key.toUpperCase();
+      const track = tracks.find(t => t.type === 'trigger' && t.triggerKey === key && t.loaded);
+      if (track) handleTriggerTrack(track);
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [tracks]);
+
+  // ─── AUTO-DIM — smooth 1% drift up/down per track ──────
+  // Each track drifts 1% per step. Direction reverses at min/max.
+  // If autoDimRandom is on, direction may randomly flip mid-drift.
+  const dimIntervals = useRef({});
+  const dimDirections = useRef({}); // track id → 1 or -1
+
+  useEffect(() => {
+    const activeDimTracks = tracks.filter(t => t.autoDim && t.loaded && !t.muted && t.playing !== false);
+    const activeIds = new Set(activeDimTracks.map(t => t.id));
+
+    // Clear intervals for tracks that no longer need dimming
+    for (const id of Object.keys(dimIntervals.current)) {
+      if (!activeIds.has(id)) {
+        clearInterval(dimIntervals.current[id]);
+        delete dimIntervals.current[id];
+        delete dimDirections.current[id];
+      }
     }
-    return () => clearTimeout(motorwayTimer.current);
-  }, [motorwayAuto, audioMutes.moottoritie]);
+
+    // Start intervals for tracks that need dimming
+    for (const track of activeDimTracks) {
+      if (dimIntervals.current[track.id]) continue;
+
+      // Initialize direction randomly
+      if (!dimDirections.current[track.id]) {
+        dimDirections.current[track.id] = Math.random() > 0.5 ? 1 : -1;
+      }
+
+      const stepMs = track.autoDimSpeed ?? 200; // ms per 1% step
+
+      dimIntervals.current[track.id] = setInterval(() => {
+        setTracks(prev => prev.map(t => {
+          if (t.id !== track.id || !t.autoDim) return t;
+
+          const min = t.autoDimMin ?? 10;
+          const max = t.autoDimMax ?? 80;
+          let dir = dimDirections.current[t.id] || 1;
+          let vol = t.volume ?? 50;
+
+          // Reverse at boundaries
+          if (vol >= max) dir = -1;
+          else if (vol <= min) dir = 1;
+          // Random direction change (if enabled, ~5% chance per step)
+          else if (t.autoDimRandom && Math.random() < 0.05) {
+            dir = -dir;
+          }
+
+          dimDirections.current[t.id] = dir;
+          vol = Math.min(max, Math.max(min, vol + dir));
+
+          return { ...t, volume: vol };
+        }));
+      }, stepMs);
+    }
+
+    return () => {
+      for (const iv of Object.values(dimIntervals.current)) clearInterval(iv);
+      dimIntervals.current = {};
+    };
+  }, [tracks.map(t => `${t.id}:${t.autoDim}:${t.loaded}:${t.muted}:${t.playing}:${t.autoDimSpeed}`).join(',')]);
+
+  // ─── TRIGGER INTENSIFY — triggers can smoothly boost a target track
+  const intensifyTimers = useRef({});
+
+  const handleTriggerTrack = (track) => {
+    if (!track.loaded) return;
+    audioEngineRef.current.playSfx(track.id);
+    log(`Trigger: ${track.label}`);
+
+    if (track.intensifyTarget) {
+      const amount = track.intensifyAmount ?? 20;
+      const duration = track.intensifyDuration ?? 3000;
+      const targetId = track.intensifyTarget;
+
+      // Clear any existing intensify timer for this target
+      if (intensifyTimers.current[targetId]) {
+        clearInterval(intensifyTimers.current[targetId].up);
+        clearInterval(intensifyTimers.current[targetId].down);
+        clearTimeout(intensifyTimers.current[targetId].wait);
+      }
+
+      // Ramp up 1% per step
+      const stepMs = 50;
+      let stepped = 0;
+      const upInterval = setInterval(() => {
+        stepped++;
+        if (stepped >= amount) { clearInterval(upInterval); return; }
+        setTracks(prev => prev.map(t =>
+          t.id === targetId ? { ...t, volume: Math.min(100, (t.volume ?? 50) + 1) } : t
+        ));
+      }, stepMs);
+
+      // After duration, ramp back down
+      const waitTimer = setTimeout(() => {
+        let downStepped = 0;
+        const downInterval = setInterval(() => {
+          downStepped++;
+          if (downStepped >= amount) { clearInterval(downInterval); return; }
+          setTracks(prev => prev.map(t =>
+            t.id === targetId ? { ...t, volume: Math.max(0, (t.volume ?? 50) - 1) } : t
+          ));
+        }, stepMs);
+        intensifyTimers.current[targetId] = { ...intensifyTimers.current[targetId], down: downInterval };
+      }, duration);
+
+      intensifyTimers.current[targetId] = { up: upInterval, wait: waitTimer };
+    }
+  };
 
   // ─── SCENT AUTO CYCLE ───────────────────────────────────
   // Every SCENT_CYCLE_INTERVAL, calculate plant percentages and
@@ -244,12 +428,8 @@ export default function App() {
     log(`Scent → ${scent.label} (${scent.cmd})`);
   };
 
-  // ─── SFX ────────────────────────────────────────────────
-  const handleTriggerSfx = (sfx) => {
-    setSfxActive(sfx.id);
-    log(`SFX triggered: ${sfx.label}`);
-    setTimeout(() => setSfxActive(null), 600);
-  };
+  // ─── TRIGGER TRACKS ─────────────────────────────────────
+  // (handleTriggerTrack defined above with intensify logic)
 
   // ─── IMAGE & STORY ──────────────────────────────────────
   const handleImageUpload = (e) => {
@@ -354,17 +534,10 @@ export default function App() {
         <AudioPanel
           masterVolume={masterVolume}
           setMasterVolume={setMasterVolume}
-          audioLevels={audioLevels}
-          setAudioLevels={setAudioLevels}
-          audioMutes={audioMutes}
-          setAudioMutes={setAudioMutes}
-          motorwayAuto={motorwayAuto}
-          setMotorwayAuto={setMotorwayAuto}
-          sfxActive={sfxActive}
-          onTriggerSfx={handleTriggerSfx}
+          tracks={tracks}
+          setTracks={setTracks}
           audioEngine={audioEngineRef.current}
-          layerFiles={layerFiles}
-          setLayerFiles={setLayerFiles}
+          onTriggerTrack={handleTriggerTrack}
         />
 
         {/* Right column */}

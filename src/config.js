@@ -39,24 +39,35 @@ export const SCENT_TYPES = [
   { id: 'off',       label: 'Pois',        icon: '⭕', cmd: 'S0', plant: null },
 ];
 
-// ─── AUDIO LAYER DEFINITIONS ────────────────────────────────
-export const AUDIO_LAYERS = [
-  { id: 'base',         label: 'Base Ambient',      group: 'base',  color: '#4a7c59', file: 'base-ambient.mp3' },
-  { id: 'tuuli',        label: 'Tuulen vaikutus',   group: 'env',   color: '#7ca5b8', file: 'tuuli.mp3' },
-  { id: 'vesi',         label: 'Veden läheisyys',   group: 'env',   color: '#3d8bbd', file: 'vesi.mp3' },
-  { id: 'yopaiva',      label: 'Yö / Päivä',        group: 'env',   color: '#b89b4a', file: 'yopaiva.mp3' },
-  { id: 'pilvisyys',    label: 'Pilvisyys & Sade',  group: 'env',   color: '#8b8b9e', file: 'pilvisyys.mp3' },
-  { id: 'kahina',       label: 'Kahina & Lehdet',   group: 'env',   color: '#6b8e4e', file: 'kahina.mp3' },
-  { id: 'linnut',       label: 'Linnunlaulu',       group: 'env',   color: '#c4a35a', file: 'linnut.mp3' },
-  { id: 'moottoritie',  label: 'Moottoritie',       group: 'motor', color: '#9e5a5a', file: 'moottoritie.mp3' },
+// ─── DEFAULT TRACKS ─────────────────────────────────────────
+// These are the starting tracks. More can be added from the frontend.
+// type: 'loop' = continuous layer, 'trigger' = one-shot effect
+// sceneLink: which scene value auto-drives this track's volume (null = manual only)
+// triggerKey: keyboard shortcut for trigger tracks
+export const DEFAULT_TRACKS = [
+  { id: 'base',        label: 'Base Ambient',     type: 'loop',    color: '#4a7c59', sceneLink: null,             triggerKey: null },
+  { id: 'moottoritie', label: 'Moottoritie',      type: 'loop',    color: '#9e5a5a', sceneLink: null,             triggerKey: null },
+  { id: 'vesi',        label: 'Veden läheisyys',  type: 'loop',    color: '#3d8bbd', sceneLink: 'waterCloseness', triggerKey: null },
+  { id: 'sade',        label: 'Sade',             type: 'loop',    color: '#8b8b9e', sceneLink: 'rain',           triggerKey: null },
+  { id: 'kahina',      label: 'Kahina & Lehdet',  type: 'loop',    color: '#6b8e4e', sceneLink: 'onField',        triggerKey: null },
+  { id: 'linnut',      label: 'Linnunlaulu',      type: 'loop',    color: '#c4a35a', sceneLink: 'dayNightCycle',  triggerKey: null },
 ];
 
-// ─── SFX DEFINITIONS ────────────────────────────────────────
-export const SFX_TRIGGERS = [
-  { id: 'thunder', label: 'Ukkonen',   key: 'T', file: 'sfx/thunder.mp3' },
-  { id: 'splash',  label: 'Roiske',    key: 'R', file: 'sfx/splash.mp3' },
-  { id: 'crack',   label: 'Risahdus',  key: 'C', file: 'sfx/crack.mp3' },
-  { id: 'owl',     label: 'Pöllö',     key: 'O', file: 'sfx/owl.mp3' },
+// ─── SCENE LINK OPTIONS ─────────────────────────────────────
+// Available scene values a track can be linked to for auto-volume
+export const SCENE_LINK_OPTIONS = [
+  { value: null,              label: 'Manual' },
+  { value: 'waterCloseness',  label: 'Water closeness' },
+  { value: 'rain',            label: 'Rain' },
+  { value: 'cloudiness',      label: 'Cloudiness' },
+  { value: 'dayNightCycle',   label: 'Day/Night cycle' },
+  { value: 'onField',         label: 'On field' },
+];
+
+// ─── TRACK COLORS FOR NEW TRACKS ────────────────────────────
+export const TRACK_COLORS = [
+  '#4a7c59', '#c474a0', '#7ca5b8', '#3d8bbd', '#b89b4a',
+  '#8b8b9e', '#6b8e4e', '#c4a35a', '#9e5a5a', '#5a9e7c',
 ];
 
 // ─── AUTOMATION RULES ───────────────────────────────────────
