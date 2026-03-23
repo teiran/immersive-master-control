@@ -4,6 +4,7 @@ import { theme, fonts } from './theme.js';
 import { createLogger } from './utils/logger.js';
 import { SerialManager } from './utils/serial.js';
 import { AudioEngine } from './utils/audio.js';
+import { GroupPlaybackController } from './utils/groupPlayback.js';
 import * as api from './utils/api.js';
 
 // Components
@@ -42,6 +43,8 @@ export default function App() {
   const [tracks, setTracks] = useState(
     DEFAULT_TRACKS.map(t => ({ ...t, volume: t.id === 'base' ? 70 : 50, muted: false, fileName: null, loaded: false }))
   );
+  const [trackGroups, setTrackGroups] = useState([]);
+  const trackGroupsRef = useRef([]);
   const [masterVolume, setMasterVolume] = useState(80);
 
   // ─── AI STORY ───────────────────────────────────────────
@@ -59,9 +62,20 @@ export default function App() {
   // ─── REFS ───────────────────────────────────────────────
   const serial = useRef(new SerialManager(CONFIG.SERIAL_BAUD));
   const audioEngineRef = useRef(new AudioEngine());
+  const groupControllerRef = useRef(new GroupPlaybackController(audioEngineRef.current));
   const scentTimers = useRef([]);
   const stateLoaded = useRef(false);
   const saveTimer = useRef(null);
+
+  // Keep ref in sync for stable callback access
+  useEffect(() => { trackGroupsRef.current = trackGroups; }, [trackGroups]);
+
+  // Wire up group controller update callback
+  useEffect(() => {
+    groupControllerRef.current.onGroupUpdate = (groupId, updates) => {
+      setTrackGroups(prev => prev.map(g => g.id === groupId ? { ...g, ...updates } : g));
+    };
+  }, []);
 
   // ─── RESTORE SAVED STATE ON STARTUP ─────────────────────
   useEffect(() => {
@@ -71,6 +85,7 @@ export default function App() {
         if (!saved) { stateLoaded.current = true; return; }
 
         if (saved.tracks) setTracks(saved.tracks);
+        if (saved.trackGroups) setTrackGroups(saved.trackGroups);
         if (saved.masterVolume != null) setMasterVolume(saved.masterVolume);
         if (saved.windMode) setWindMode(saved.windMode);
         if (saved.windIntensity != null) setWindIntensity(saved.windIntensity);
@@ -90,6 +105,23 @@ export default function App() {
               if (track.type === 'loop') engine.playLayer(track.id);
             } catch (err) {
               console.warn(`[Audio] Failed to restore ${track.label}:`, err.message);
+            }
+          }
+        }
+
+        // Re-load group sub-track audio files
+        for (const group of (saved.trackGroups || [])) {
+          for (const sub of group.subTracks) {
+            if (sub.serverPath) {
+              try {
+                const url = `http://${location.hostname}:3001${sub.serverPath}`;
+                await engine.addLayer(sub.id, url, {
+                  loop: group.type === 'loop',
+                  volume: (sub.volume ?? 50) / 100,
+                });
+              } catch (err) {
+                console.warn(`[Audio] Failed to restore sub-track ${sub.label}:`, err.message);
+              }
             }
           }
         }
@@ -116,6 +148,7 @@ export default function App() {
           fileName: t.fileName, loaded: t.loaded,
           serverPath: t.serverPath || null,
           speed: t.speed ?? 100,
+          regionStart: t.regionStart ?? 0, regionEnd: t.regionEnd ?? 1,
           autoDim: t.autoDim || false, autoDimRandom: t.autoDimRandom || false,
           autoDimMin: t.autoDimMin, autoDimMax: t.autoDimMax, autoDimSpeed: t.autoDimSpeed,
           autoSpeed: t.autoSpeed || false, autoSpeedRandom: t.autoSpeedRandom || false,
@@ -123,13 +156,14 @@ export default function App() {
           intensifyTarget: t.intensifyTarget || null,
           intensifyAmount: t.intensifyAmount, intensifyDuration: t.intensifyDuration,
         })),
+        trackGroups,
         masterVolume,
         windMode,
         windIntensity,
         scentMode,
       }).catch(() => {});
     }, 2000);
-  }, [tracks, masterVolume, windMode, windIntensity, scentMode]);
+  }, [tracks, trackGroups, masterVolume, windMode, windIntensity, scentMode]);
 
   // ─── AUDIO ENGINE SYNC ─────────────────────────────────
   useEffect(() => {
@@ -138,8 +172,29 @@ export default function App() {
       engine.setLayerVolume(track.id, (track.volume ?? 50) / 100);
       engine.setLayerMute(track.id, !!track.muted);
       engine.setLayerSpeed(track.id, (track.speed ?? 100) / 100);
+      // Sync region
+      const buf = engine.getBuffer(track.id);
+      if (buf && (track.regionStart != null || track.regionEnd != null)) {
+        engine.setLayerRegion(
+          track.id,
+          (track.regionStart ?? 0) * buf.duration,
+          (track.regionEnd ?? 1) * buf.duration
+        );
+      }
     }
   }, [tracks]);
+
+  // Sync group sub-track volumes
+  useEffect(() => {
+    const engine = audioEngineRef.current;
+    for (const group of trackGroups) {
+      for (const sub of group.subTracks) {
+        const vol = (group.volume / 100) * ((sub.volume ?? 50) / 100);
+        engine.setLayerVolume(sub.id, group.muted ? 0 : vol);
+        engine.setLayerSpeed(sub.id, (sub.speed ?? 100) / 100);
+      }
+    }
+  }, [trackGroups]);
 
   useEffect(() => {
     audioEngineRef.current.setMasterVolume(masterVolume / 100);
@@ -238,11 +293,28 @@ export default function App() {
     const handler = (e) => {
       const key = e.key.toUpperCase();
       const track = tracks.find(t => t.type === 'trigger' && t.triggerKey === key && t.loaded);
-      if (track) handleTriggerTrack(track);
+      if (track) { handleTriggerTrack(track); return; }
+
+      const group = trackGroups.find(g => g.triggerKey === key);
+      if (group) {
+        const ctrl = groupControllerRef.current;
+        if (group.type === 'trigger') {
+          ctrl.triggerGroup(group);
+          log(`Group trigger: ${group.label}`);
+        } else if (group.playing) {
+          // Already playing — advance to next sub-track
+          ctrl.advanceGroup(group);
+          log(`Group advance: ${group.label}`);
+        } else {
+          // Start playing
+          ctrl.startGroup(group);
+          setTrackGroups(prev => prev.map(g => g.id === group.id ? { ...g, playing: true } : g));
+        }
+      }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [tracks]);
+  }, [tracks, trackGroups]);
 
   // ─── AUTO-DRIFT — smooth 1-unit drift for volume and/or speed ──
   // Each track drifts 1 unit per step. Direction reverses at min/max.
@@ -560,7 +632,11 @@ export default function App() {
           setMasterVolume={setMasterVolume}
           tracks={tracks}
           setTracks={setTracks}
+          trackGroups={trackGroups}
+          setTrackGroups={setTrackGroups}
+          trackGroupsRef={trackGroupsRef}
           audioEngine={audioEngineRef.current}
+          groupController={groupControllerRef.current}
           onTriggerTrack={handleTriggerTrack}
         />
 

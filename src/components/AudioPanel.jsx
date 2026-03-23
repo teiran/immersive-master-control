@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { Panel, Slider, Btn } from './ui.jsx';
+import { Waveform } from './Waveform.jsx';
 import { SCENE_LINK_OPTIONS } from '../config.js';
 import { theme, fonts } from '../theme.js';
 import * as api from '../utils/api.js';
@@ -7,7 +8,8 @@ import * as api from '../utils/api.js';
 export function AudioPanel({
   masterVolume, setMasterVolume,
   tracks, setTracks,
-  audioEngine,
+  trackGroups, setTrackGroups, trackGroupsRef,
+  audioEngine, groupController,
   onTriggerTrack,
 }) {
   const [dragOverId, setDragOverId] = useState(null);
@@ -140,6 +142,110 @@ export function AudioPanel({
   const loopTracks = tracks.filter(t => t.type === 'loop');
   const triggerTracks = tracks.filter(t => t.type === 'trigger');
 
+  // ─── Group helpers ────────────────────────────────────
+  const [showAddGroup, setShowAddGroup] = useState(false);
+  const [newGroup, setNewGroup] = useState({ label: '', type: 'loop', playMode: 'sequential' });
+  const subFileInputRef = useRef(null);
+  const subFileTargetRef = useRef(null); // { groupId, subId }
+
+  const handleAddGroup = () => {
+    if (!newGroup.label.trim()) return;
+    setTrackGroups(prev => [...prev, {
+      id: `group_${Date.now()}`, label: newGroup.label, type: newGroup.type,
+      playMode: newGroup.playMode, color: randomColor(),
+      customSequence: [], currentIndex: 0,
+      triggerKey: null, sceneLink: null,
+      volume: 80, muted: false, playing: false, speed: 100,
+      subTracks: [],
+    }]);
+    setNewGroup({ label: '', type: 'loop', playMode: 'sequential' });
+    setShowAddGroup(false);
+  };
+
+  const updateGroup = (groupId, updates) => {
+    setTrackGroups(prev => prev.map(g => g.id === groupId ? { ...g, ...updates } : g));
+  };
+
+  const addSubTrack = (groupId) => {
+    const subId = `sub_${Date.now()}`;
+    setTrackGroups(prev => prev.map(g => g.id !== groupId ? g : {
+      ...g,
+      subTracks: [...g.subTracks, {
+        id: subId, label: `Track ${g.subTracks.length + 1}`,
+        fileName: null, serverPath: null, loaded: false, volume: 80, speed: 100,
+      }],
+    }));
+    return subId;
+  };
+
+  const removeSubTrack = (groupId, subId) => {
+    if (audioEngine) audioEngine.stopLayer(subId);
+    setTrackGroups(prev => prev.map(g => g.id !== groupId ? g : {
+      ...g,
+      subTracks: g.subTracks.filter(s => s.id !== subId),
+      customSequence: g.customSequence.filter(i => i < g.subTracks.length - 1),
+    }));
+  };
+
+  const loadSubTrackFile = async (groupId, subId, file) => {
+    if (!file || !file.type.startsWith('audio/')) return;
+    const group = trackGroups.find(g => g.id === groupId);
+    if (audioEngine) {
+      await audioEngine.resume();
+      await audioEngine.addLayerFromFile(subId, file, {
+        loop: group?.type === 'loop', volume: 0.5,
+      });
+    }
+    let serverPath = null;
+    try {
+      const result = await api.uploadAudio(file);
+      serverPath = result.path;
+    } catch (err) { console.warn('Upload failed:', err.message); }
+
+    setTrackGroups(prev => prev.map(g => g.id !== groupId ? g : {
+      ...g,
+      subTracks: g.subTracks.map(s => s.id !== subId ? s : {
+        ...s, fileName: file.name, loaded: true, serverPath,
+      }),
+    }));
+  };
+
+  const handleSubFilePicker = (groupId, subId) => {
+    subFileTargetRef.current = { groupId, subId };
+    subFileInputRef.current?.click();
+  };
+
+  const handleSubFileSelected = (e) => {
+    const file = e.target.files?.[0];
+    if (file && subFileTargetRef.current) {
+      loadSubTrackFile(subFileTargetRef.current.groupId, subFileTargetRef.current.subId, file);
+    }
+    e.target.value = '';
+  };
+
+  const handleGroupPlayStop = (group) => {
+    if (!groupController) return;
+    if (group.playing) {
+      groupController.stopGroup(group);
+      updateGroup(group.id, { playing: false });
+    } else {
+      groupController.startGroup(group);
+      updateGroup(group.id, { playing: true });
+    }
+  };
+
+  const handleGroupAdvance = (group) => {
+    if (!groupController || !group.playing) return;
+    groupController.advanceGroup(group);
+  };
+
+  const handleRemoveGroup = (groupId) => {
+    const group = trackGroups.find(g => g.id === groupId);
+    if (group && groupController) groupController.stopGroup(group);
+    setTrackGroups(prev => prev.filter(g => g.id !== groupId));
+    setEditingId(null);
+  };
+
   return (
     <Panel title="Audio Engine" icon="🎵" status="connected">
       {/* Hidden file inputs */}
@@ -173,6 +279,7 @@ export function AudioPanel({
           <TrackRow
             key={track.id}
             track={track}
+            audioEngine={audioEngine}
             isDragOver={dragOverId === track.id}
             isEditing={editingId === track.id}
             onDrop={(e) => handleDrop(e, track.id)}
@@ -243,7 +350,55 @@ export function AudioPanel({
         </div>
       </div>
 
-      {/* ─── ADD TRACK ────────────────────────────────── */}
+      {/* ─── TRACK GROUPS ──────────────────────────────── */}
+      {trackGroups.length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <div style={{
+            fontSize: 9, color: theme.textDim, letterSpacing: '0.1em',
+            textTransform: 'uppercase', marginTop: 4,
+          }}>
+            Track Groups
+          </div>
+          {trackGroups.map(group => (
+            <TrackGroupRow
+              key={group.id}
+              group={group}
+              isEditing={editingId === group.id}
+              onEdit={() => setEditingId(editingId === group.id ? null : group.id)}
+              onUpdate={(updates) => updateGroup(group.id, updates)}
+              onPlayStop={() => handleGroupPlayStop(group)}
+              onAdvance={() => handleGroupAdvance(group)}
+              onTrigger={() => {
+                if (groupController) {
+                  groupController.triggerGroup(group);
+                }
+              }}
+              onAddSubTrack={() => addSubTrack(group.id)}
+              onRemoveSubTrack={(subId) => removeSubTrack(group.id, subId)}
+              onSubFilePicker={(subId) => handleSubFilePicker(group.id, subId)}
+              onSubDrop={(subId, e) => {
+                e.preventDefault();
+                const file = e.dataTransfer?.files[0];
+                if (file) loadSubTrackFile(group.id, subId, file);
+              }}
+              onUpdateSubTrack={(subId, updates) => {
+                setTrackGroups(prev => prev.map(g => g.id !== group.id ? g : {
+                  ...g, subTracks: g.subTracks.map(s => s.id !== subId ? s : { ...s, ...updates }),
+                }));
+              }}
+              onRemove={() => handleRemoveGroup(group.id)}
+              dragOverId={dragOverId}
+              setDragOverId={setDragOverId}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Hidden file input for sub-tracks */}
+      <input ref={subFileInputRef} type="file" accept="audio/*"
+        style={{ display: 'none' }} onChange={handleSubFileSelected} />
+
+      {/* ─── ADD TRACK / GROUP ────────────────────────────── */}
       <div
         onDrop={handleDropNew}
         onDragOver={(e) => { e.preventDefault(); setDragOverId('__new'); }}
@@ -308,9 +463,50 @@ export function AudioPanel({
               Browse audio file
             </button>
             <span style={{ color: theme.panelBorder }}>|</span>
-            <span style={{ fontSize: 9, color: theme.textDim }}>
-              or drop file here
-            </span>
+            <span style={{ color: theme.panelBorder }}>|</span>
+            <button
+              onClick={() => setShowAddGroup(true)}
+              style={{
+                background: 'transparent', border: 'none', color: theme.warn,
+                fontFamily: fonts.mono, fontSize: 10, cursor: 'pointer',
+              }}
+            >
+              + Add group
+            </button>
+          </div>
+        )}
+
+        {showAddGroup && (
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 6 }}>
+            <input
+              value={newGroup.label}
+              onChange={e => setNewGroup(prev => ({ ...prev, label: e.target.value }))}
+              onKeyDown={e => e.key === 'Enter' && handleAddGroup()}
+              placeholder="Group name..."
+              autoFocus
+              style={{
+                flex: 1, background: theme.bg, border: `1px solid ${theme.panelBorder}`,
+                color: theme.text, padding: '4px 8px', borderRadius: 4,
+                fontFamily: fonts.mono, fontSize: 10, outline: 'none',
+              }}
+            />
+            <select value={newGroup.type}
+              onChange={e => setNewGroup(prev => ({ ...prev, type: e.target.value }))}
+              style={{ background: theme.bg, border: `1px solid ${theme.panelBorder}`,
+                color: theme.text, padding: '4px 6px', borderRadius: 4, fontFamily: fonts.mono, fontSize: 10 }}>
+              <option value="loop">Loop</option>
+              <option value="trigger">Trigger</option>
+            </select>
+            <select value={newGroup.playMode}
+              onChange={e => setNewGroup(prev => ({ ...prev, playMode: e.target.value }))}
+              style={{ background: theme.bg, border: `1px solid ${theme.panelBorder}`,
+                color: theme.text, padding: '4px 6px', borderRadius: 4, fontFamily: fonts.mono, fontSize: 10 }}>
+              <option value="sequential">Sequential</option>
+              <option value="random">Random</option>
+              <option value="custom">Custom</option>
+            </select>
+            <Btn small onClick={handleAddGroup} active color={theme.warn}>Add</Btn>
+            <Btn small onClick={() => setShowAddGroup(false)} color={theme.textDim}>X</Btn>
           </div>
         )}
       </div>
@@ -321,7 +517,7 @@ export function AudioPanel({
 // ─── TRACK ROW (loop layers) ─────────────────────────────────
 
 function TrackRow({
-  track, isDragOver, isEditing,
+  track, audioEngine, isDragOver, isEditing,
   onDrop, onDragOver, onDragLeave,
   onVolumeChange, onMuteToggle, onPlayStop, onEdit,
   onSceneLinkChange, onUpdate, onRemove, onLabelChange, onBrowse,
@@ -450,6 +646,28 @@ function TrackRow({
               ))}
             </select>
           </div>
+          {/* Waveform region selector */}
+          {track.loaded && audioEngine && (
+            <div style={{ padding: '4px 0', borderTop: `1px solid ${theme.panelBorder}33` }}>
+              <span style={{ fontSize: 9, color: theme.textDim, display: 'block', marginBottom: 4 }}>
+                Play region — drag handles to trim
+              </span>
+              <Waveform
+                buffer={audioEngine.getBuffer(track.id)}
+                regionStart={track.regionStart ?? 0}
+                regionEnd={track.regionEnd ?? 1}
+                color={track.color}
+                onChange={(start, end) => {
+                  onUpdate({ regionStart: start, regionEnd: end });
+                  const buf = audioEngine.getBuffer(track.id);
+                  if (buf) {
+                    audioEngine.setLayerRegion(track.id, start * buf.duration, end * buf.duration);
+                  }
+                }}
+              />
+            </div>
+          )}
+
           {/* Auto-dim */}
           <div style={{
             padding: '6px 0', borderTop: `1px solid ${theme.panelBorder}33`,
@@ -667,6 +885,252 @@ function NumberInput({ label, value, onChange, min = 0, max = 100, step = 1 }) {
         }}
       />
     </label>
+  );
+}
+
+// ─── TRACK GROUP ROW ─────────────────────────────────────────
+
+function TrackGroupRow({
+  group, isEditing,
+  onEdit, onUpdate, onPlayStop, onAdvance, onTrigger,
+  onAddSubTrack, onRemoveSubTrack, onSubFilePicker, onSubDrop, onUpdateSubTrack,
+  onRemove, dragOverId, setDragOverId,
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const modeBadge = { random: 'RND', sequential: 'SEQ', custom: 'CUS' }[group.playMode] || '?';
+  const hasLoadedSubs = group.subTracks.some(s => s.loaded);
+
+  return (
+    <div style={{
+      background: theme.bg + '88', borderRadius: 6,
+      border: `1px solid ${group.color}33`, overflow: 'hidden',
+    }}>
+      {/* Header row */}
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 6, padding: '6px 8px',
+        cursor: 'pointer',
+      }} onClick={() => setExpanded(!expanded)}>
+        <span style={{ fontSize: 8, color: theme.textDim }}>{expanded ? '▼' : '▶'}</span>
+
+        {group.type === 'loop' ? (
+          <>
+            <button onClick={(e) => { e.stopPropagation(); onPlayStop(); }} disabled={!hasLoadedSubs} style={{
+              background: group.playing ? group.color + '22' : 'transparent',
+              border: `1px solid ${group.playing ? group.color : theme.panelBorder}`,
+              color: group.playing ? group.color : theme.textDim,
+              padding: '2px 5px', borderRadius: 3, fontFamily: fonts.mono,
+              fontSize: 9, cursor: hasLoadedSubs ? 'pointer' : 'default', minWidth: 20,
+              opacity: hasLoadedSubs ? 1 : 0.3,
+            }}>
+              {group.playing ? '■' : '▶'}
+            </button>
+            {group.playing && (
+              <button onClick={(e) => { e.stopPropagation(); onAdvance(); }} style={{
+                background: group.color + '22', border: `1px solid ${group.color}44`,
+                color: group.color, padding: '2px 5px', borderRadius: 3,
+                fontFamily: fonts.mono, fontSize: 9, cursor: 'pointer',
+              }}>⏭</button>
+            )}
+          </>
+        ) : (
+          <button onClick={(e) => { e.stopPropagation(); onTrigger(); }} disabled={!hasLoadedSubs} style={{
+            background: 'transparent', border: `1px solid ${theme.panelBorder}`,
+            color: hasLoadedSubs ? theme.accent : theme.textDim,
+            padding: '2px 5px', borderRadius: 3, fontFamily: fonts.mono,
+            fontSize: 9, cursor: hasLoadedSubs ? 'pointer' : 'default', minWidth: 20,
+          }}>
+            ⚡
+          </button>
+        )}
+
+        <button onClick={(e) => { e.stopPropagation(); onUpdate({ muted: !group.muted }); }} style={{
+          background: group.muted ? theme.danger + '33' : 'transparent',
+          border: `1px solid ${group.muted ? theme.danger : theme.panelBorder}`,
+          color: group.muted ? theme.danger : theme.textDim,
+          padding: '2px 5px', borderRadius: 3, fontFamily: fonts.mono,
+          fontSize: 9, cursor: 'pointer', minWidth: 20,
+        }}>M</button>
+
+        <div style={{ width: 6, height: 6, borderRadius: '50%', background: group.color, flexShrink: 0 }} />
+
+        <span style={{ fontSize: 10, color: theme.text, flex: 1 }}>
+          {group.label}
+          <span style={{
+            fontSize: 8, color: group.color, marginLeft: 6,
+            background: group.color + '22', padding: '1px 4px', borderRadius: 3,
+          }}>{modeBadge}</span>
+          <span style={{ fontSize: 8, color: theme.textDim, marginLeft: 4 }}>
+            ({group.subTracks.length} tracks)
+          </span>
+        </span>
+
+        <div style={{ width: 120 }}>
+          <Slider value={group.volume} onChange={v => onUpdate({ volume: v })} color={group.color} showValue />
+        </div>
+      </div>
+
+      {/* Expanded content */}
+      {expanded && (
+        <div style={{ padding: '4px 12px 8px', display: 'flex', flexDirection: 'column', gap: 4 }}>
+          {/* Play mode selector */}
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 4 }}>
+            <span style={{ fontSize: 9, color: theme.textDim }}>Mode:</span>
+            {['sequential', 'random', 'custom'].map(mode => (
+              <button key={mode} onClick={() => onUpdate({ playMode: mode })} style={{
+                background: group.playMode === mode ? group.color + '22' : 'transparent',
+                border: `1px solid ${group.playMode === mode ? group.color : theme.panelBorder}`,
+                color: group.playMode === mode ? group.color : theme.textDim,
+                padding: '2px 8px', borderRadius: 3, fontFamily: fonts.mono,
+                fontSize: 9, cursor: 'pointer', textTransform: 'capitalize',
+              }}>{mode}</button>
+            ))}
+            {group.triggerKey && (
+              <span style={{ fontSize: 8, color: theme.textDim, marginLeft: 8 }}>
+                Key: [{group.triggerKey}]
+              </span>
+            )}
+          </div>
+
+          {/* Sub-tracks */}
+          {group.subTracks.map((sub, idx) => (
+            <div key={sub.id}
+              onDrop={(e) => onSubDrop(sub.id, e)}
+              onDragOver={(e) => { e.preventDefault(); setDragOverId(sub.id); }}
+              onDragLeave={() => setDragOverId(null)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 6, padding: '3px 4px',
+                borderRadius: 3,
+                background: dragOverId === sub.id ? group.color + '22' : 'transparent',
+                outline: dragOverId === sub.id ? `1px dashed ${group.color}` : 'none',
+              }}
+            >
+              <span style={{ fontSize: 9, color: theme.textDim, minWidth: 16 }}>#{idx + 1}</span>
+              <div style={{ minWidth: 80 }}>
+                <span style={{ fontSize: 10, color: theme.text, display: 'block' }}>{sub.label}</span>
+                {sub.loaded ? (
+                  <span style={{ fontSize: 8, color: theme.textDim }}>{sub.fileName}</span>
+                ) : (
+                  <span style={{ fontSize: 8, color: theme.warn }}>no audio</span>
+                )}
+              </div>
+              {!sub.loaded && (
+                <button onClick={() => onSubFilePicker(sub.id)} style={{
+                  background: theme.accent + '22', border: `1px solid ${theme.accent}44`,
+                  color: theme.accent, padding: '2px 6px', borderRadius: 3,
+                  fontFamily: fonts.mono, fontSize: 8, cursor: 'pointer',
+                }}>Load</button>
+              )}
+              <div style={{ flex: 1 }}>
+                <Slider value={sub.volume} onChange={v => onUpdateSubTrack(sub.id, { volume: v })}
+                  color={group.color} showValue />
+              </div>
+              <div style={{ width: 80 }}>
+                <Slider value={sub.speed ?? 100} onChange={v => onUpdateSubTrack(sub.id, { speed: v })}
+                  min={25} max={200} color={theme.textDim} showValue />
+              </div>
+              <button onClick={() => onRemoveSubTrack(sub.id)} style={{
+                background: 'transparent', border: 'none', color: theme.danger,
+                cursor: 'pointer', fontSize: 12, padding: '0 4px',
+              }}>×</button>
+            </div>
+          ))}
+
+          {/* Custom sequence editor */}
+          {group.playMode === 'custom' && (
+            <div style={{ padding: '4px 0', borderTop: `1px solid ${theme.panelBorder}33` }}>
+              <span style={{ fontSize: 9, color: theme.textDim, display: 'block', marginBottom: 4 }}>
+                Play order (click to add, click badge to remove):
+              </span>
+              <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center' }}>
+                {(group.customSequence || []).map((subIdx, seqPos) => (
+                  <button key={seqPos}
+                    onClick={() => onUpdate({
+                      customSequence: group.customSequence.filter((_, i) => i !== seqPos),
+                    })}
+                    style={{
+                      background: group.color + '22', border: `1px solid ${group.color}44`,
+                      color: group.color, padding: '2px 6px', borderRadius: 3,
+                      fontFamily: fonts.mono, fontSize: 9, cursor: 'pointer',
+                    }}
+                  >#{subIdx + 1}</button>
+                ))}
+                <span style={{ color: theme.textDim, fontSize: 9 }}>+</span>
+                {group.subTracks.map((_, idx) => (
+                  <button key={idx}
+                    onClick={() => onUpdate({
+                      customSequence: [...(group.customSequence || []), idx],
+                    })}
+                    style={{
+                      background: 'transparent', border: `1px solid ${theme.panelBorder}`,
+                      color: theme.textDim, padding: '1px 5px', borderRadius: 3,
+                      fontFamily: fonts.mono, fontSize: 8, cursor: 'pointer',
+                    }}
+                  >#{idx + 1}</button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Add sub-track + settings */}
+          <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
+            <button onClick={onAddSubTrack} style={{
+              background: group.color + '22', border: `1px solid ${group.color}44`,
+              color: group.color, padding: '3px 10px', borderRadius: 3,
+              fontFamily: fonts.mono, fontSize: 9, cursor: 'pointer',
+            }}>+ Add sub-track</button>
+            <button onClick={onEdit} style={{
+              background: 'transparent', border: `1px solid ${theme.panelBorder}`,
+              color: theme.textDim, padding: '3px 10px', borderRadius: 3,
+              fontFamily: fonts.mono, fontSize: 9, cursor: 'pointer',
+            }}>Settings</button>
+            <div style={{ flex: 1 }} />
+            <button onClick={onRemove} style={{
+              background: theme.danger + '22', border: `1px solid ${theme.danger}44`,
+              color: theme.danger, padding: '3px 10px', borderRadius: 3,
+              fontFamily: fonts.mono, fontSize: 9, cursor: 'pointer',
+            }}>Remove group</button>
+          </div>
+
+          {/* Settings panel */}
+          {isEditing && (
+            <div style={{
+              padding: '8px', marginTop: 4, background: theme.panel,
+              borderRadius: 4, border: `1px solid ${theme.panelBorder}`,
+              display: 'flex', flexDirection: 'column', gap: 6,
+            }}>
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                <span style={{ fontSize: 9, color: theme.textDim, minWidth: 50 }}>Name:</span>
+                <input value={group.label} onChange={e => onUpdate({ label: e.target.value })}
+                  style={{ flex: 1, background: theme.bg, border: `1px solid ${theme.panelBorder}`,
+                    color: theme.text, padding: '3px 6px', borderRadius: 3,
+                    fontFamily: fonts.mono, fontSize: 10, outline: 'none' }} />
+              </div>
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                <span style={{ fontSize: 9, color: theme.textDim, minWidth: 50 }}>Key:</span>
+                <input value={group.triggerKey || ''} maxLength={1}
+                  onChange={e => onUpdate({ triggerKey: e.target.value.toUpperCase() || null })}
+                  placeholder="Press key..."
+                  style={{ width: 50, background: theme.bg, border: `1px solid ${theme.panelBorder}`,
+                    color: theme.text, padding: '3px 6px', borderRadius: 3,
+                    fontFamily: fonts.mono, fontSize: 10, outline: 'none', textAlign: 'center' }} />
+              </div>
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                <span style={{ fontSize: 9, color: theme.textDim, minWidth: 50 }}>Auto:</span>
+                <select value={group.sceneLink || ''}
+                  onChange={e => onUpdate({ sceneLink: e.target.value || null })}
+                  style={{ flex: 1, background: theme.bg, border: `1px solid ${theme.panelBorder}`,
+                    color: theme.text, padding: '3px 6px', borderRadius: 3,
+                    fontFamily: fonts.mono, fontSize: 10 }}>
+                  {SCENE_LINK_OPTIONS.map(o => (
+                    <option key={o.value || 'none'} value={o.value || ''}>{o.label}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 

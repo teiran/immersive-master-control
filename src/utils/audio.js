@@ -111,16 +111,42 @@ export class AudioEngine {
     return true;
   }
 
+  // Set region bounds for a layer (in seconds)
+  setLayerRegion(id, regionStart, regionEnd) {
+    const layer = this.layers.get(id);
+    if (!layer) return;
+    layer.regionStart = regionStart;
+    layer.regionEnd = regionEnd;
+  }
+
+  // Get buffer for waveform drawing
+  getBuffer(id) {
+    const layer = this.layers.get(id);
+    return layer?.buffer || null;
+  }
+
   playLayer(id) {
     const layer = this.layers.get(id);
     if (!layer || !layer.buffer || layer.playing) return;
 
     const source = this.ctx.createBufferSource();
     source.buffer = layer.buffer;
-    source.loop = layer.loop;
     source.playbackRate.value = layer.speed ?? 1.0;
     source.connect(layer.gainNode);
-    source.start(0);
+
+    const start = layer.regionStart ?? 0;
+    const end = layer.regionEnd ?? layer.buffer.duration;
+    const duration = end - start;
+
+    if (layer.loop) {
+      source.loop = true;
+      source.loopStart = start;
+      source.loopEnd = end;
+      source.start(0, start);
+    } else {
+      source.loop = false;
+      source.start(0, start, duration);
+    }
 
     layer.source = source;
     layer.playing = true;
@@ -130,6 +156,33 @@ export class AudioEngine {
         layer.playing = false;
         layer.source = null;
       }
+    };
+  }
+
+  // Play a layer once (no loop), call onEnded when finished
+  playLayerOnce(id, onEnded) {
+    const layer = this.layers.get(id);
+    if (!layer || !layer.buffer) return;
+
+    this.stopLayer(id);
+
+    const source = this.ctx.createBufferSource();
+    source.buffer = layer.buffer;
+    source.loop = false;
+    source.playbackRate.value = layer.speed ?? 1.0;
+    source.connect(layer.gainNode);
+
+    const start = layer.regionStart ?? 0;
+    const end = layer.regionEnd ?? layer.buffer.duration;
+    source.start(0, start, end - start);
+
+    layer.source = source;
+    layer.playing = true;
+
+    source.onended = () => {
+      layer.playing = false;
+      layer.source = null;
+      if (onEnded) onEnded();
     };
   }
 
