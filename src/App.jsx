@@ -90,8 +90,9 @@ export default function App() {
         if (saved.windMode) setWindMode(saved.windMode);
         if (saved.windIntensity != null) setWindIntensity(saved.windIntensity);
         if (saved.scentMode) setScentMode(saved.scentMode);
+        if (saved.activeScent) setActiveScent(saved.activeScent);
 
-        // Re-load audio files from server
+        // Re-load audio buffers from server (decoding works even with suspended context)
         const engine = audioEngineRef.current;
         await engine.init();
         for (const track of (saved.tracks || [])) {
@@ -102,7 +103,14 @@ export default function App() {
                 loop: track.type === 'loop',
                 volume: (track.volume ?? 50) / 100,
               });
-              if (track.type === 'loop') engine.playLayer(track.id);
+              // Set region
+              const buf = engine.getBuffer(track.id);
+              if (buf && (track.regionStart || track.regionEnd)) {
+                engine.setLayerRegion(track.id,
+                  (track.regionStart ?? 0) * buf.duration,
+                  (track.regionEnd ?? 1) * buf.duration
+                );
+              }
             } catch (err) {
               console.warn(`[Audio] Failed to restore ${track.label}:`, err.message);
             }
@@ -126,7 +134,33 @@ export default function App() {
           }
         }
 
-        console.log('[State] Restored');
+        // Defer playback until user clicks anywhere (browser autoplay policy)
+        const startPlayback = async () => {
+          await engine.resume();
+          // Play tracks that were playing
+          for (const track of (saved.tracks || [])) {
+            if (track.serverPath && track.type === 'loop' && track.playing !== false) {
+              engine.playLayer(track.id);
+            }
+          }
+          // Re-start groups that were playing
+          for (const group of (saved.trackGroups || [])) {
+            if (group.playing && group.type === 'loop') {
+              groupControllerRef.current.startGroup(group);
+            }
+          }
+          document.removeEventListener('click', startPlayback);
+          document.removeEventListener('keydown', startPlayback);
+        };
+
+        if (engine.ctx?.state === 'suspended') {
+          document.addEventListener('click', startPlayback, { once: true });
+          document.addEventListener('keydown', startPlayback, { once: true });
+          console.log('[State] Restored — click anywhere to start audio');
+        } else {
+          await startPlayback();
+          console.log('[State] Restored');
+        }
       } catch (err) {
         console.warn('[State] Could not restore:', err.message);
       }
@@ -144,7 +178,7 @@ export default function App() {
         tracks: tracks.map(t => ({
           id: t.id, label: t.label, type: t.type, color: t.color,
           sceneLink: t.sceneLink, triggerKey: t.triggerKey,
-          volume: t.volume, muted: t.muted,
+          volume: t.volume, muted: t.muted, playing: t.playing ?? true,
           fileName: t.fileName, loaded: t.loaded,
           serverPath: t.serverPath || null,
           speed: t.speed ?? 100,
@@ -161,9 +195,10 @@ export default function App() {
         windMode,
         windIntensity,
         scentMode,
+        activeScent,
       }).catch(() => {});
     }, 2000);
-  }, [tracks, trackGroups, masterVolume, windMode, windIntensity, scentMode]);
+  }, [tracks, trackGroups, masterVolume, windMode, windIntensity, scentMode, activeScent]);
 
   // ─── AUDIO ENGINE SYNC ─────────────────────────────────
   useEffect(() => {
