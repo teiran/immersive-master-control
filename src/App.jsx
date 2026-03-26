@@ -555,7 +555,7 @@ export default function App() {
 
   const handleScentSelect = (scent) => {
     setActiveScent(scent.id);
-    serial.current.send(scent.cmd);
+    serial.current.send(`${scent.cmd}\n`);
     log(`Scent → ${scent.label} (${scent.cmd})`);
   };
 
