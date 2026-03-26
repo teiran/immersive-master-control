@@ -6,6 +6,7 @@ import { SerialManager } from './utils/serial.js';
 import { AudioEngine } from './utils/audio.js';
 import { GroupPlaybackController } from './utils/groupPlayback.js';
 import * as api from './utils/api.js';
+import { SCENT_TYPES } from './config.js';
 
 // Components
 import { GodotPanel } from './components/GodotPanel.jsx';
@@ -494,7 +495,7 @@ export default function App() {
 
       const total = sceneData.flowers + sceneData.evergreen + sceneData.thirdPlant;
       if (total === 0) {
-        serial.current.send('S0');
+        serial.current.send('stop\n');
         setActiveScent('off');
         setScentPercentages({ flowers: 0, evergreen: 0, thirdPlant: 0 });
         return;
@@ -513,15 +514,15 @@ export default function App() {
 
       const interval = CONFIG.SCENT_CYCLE_INTERVAL;
       const schedule = [
-        { cmd: 'S1', id: 'flowers',   duration: pct.flowers * interval },
-        { cmd: 'S2', id: 'evergreen', duration: pct.evergreen * interval },
-        { cmd: 'S3', id: 'third',     duration: pct.thirdPlant * interval },
+        { ...SCENT_TYPES.find(s => s.id === 'flowers'), duration: pct.flowers * interval },
+        { ...SCENT_TYPES.find(s => s.id === 'evergreen'), duration: pct.evergreen * interval },
+        { ...SCENT_TYPES.find(s => s.id === 'third'), duration: pct.thirdPlant * interval },
       ].filter(s => s.duration > 200); // skip if less than 200ms
 
       let offset = 0;
       for (const step of schedule) {
         const t = setTimeout(() => {
-          serial.current.send(step.cmd);
+          serial.current.send(`${step.cmd}\n`);
           setActiveScent(step.id);
         }, offset);
         scentTimers.current.push(t);
