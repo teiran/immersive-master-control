@@ -41,7 +41,7 @@ export const SCENT_TYPES = [
     cmd: "set 2",
     plant: "evergreen",
   },
-  { id: "third", label: "TBD", icon: "❓", cmd: "S3", plant: "thirdPlant" }, // TBD
+  { id: "third", label: "TBD", icon: "❓", cmd: "set 1", plant: "thirdPlant" }, // TBD
   { id: "off", label: "Pois", icon: "⭕", cmd: "stop", plant: null },
 ];
 
