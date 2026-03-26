@@ -42,7 +42,7 @@ export const SCENT_TYPES = [
     plant: "evergreen",
   },
   { id: "third", label: "TBD", icon: "❓", cmd: "S3", plant: "thirdPlant" }, // TBD
-  { id: "off", label: "Pois", icon: "⭕", cmd: "S0", plant: null },
+  { id: "off", label: "Pois", icon: "⭕", cmd: "stop", plant: null },
 ];
 
 // ─── DEFAULT TRACKS ─────────────────────────────────────────
