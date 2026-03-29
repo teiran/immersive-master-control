@@ -82,7 +82,10 @@ function broadcast(type, data) {
 
 // ─── GODOT ENDPOINTS ─────────────────────────────────────────
 
-// Godot sends scene state — every POST is logged with a sequence number
+// Godot sends scene state — handles up to 10 req/s
+// Log throttled to 1/s to avoid console spam, but every request is processed
+let lastSceneLog = 0;
+
 app.post('/api/scene', (req, res) => {
   sceneSeq++;
   sceneData = {
@@ -99,7 +102,12 @@ app.post('/api/scene', (req, res) => {
     onField: req.body.onField ?? sceneData.onField,
   };
 
-  console.log(`[Scene] #${sceneSeq} F:${sceneData.flowers} E:${sceneData.evergreen} T:${sceneData.thirdPlant}`);
+  const now = Date.now();
+  if (now - lastSceneLog >= 1000) {
+    console.log(`[Scene] #${sceneSeq} F:${sceneData.flowers} E:${sceneData.evergreen} T:${sceneData.thirdPlant}`);
+    lastSceneLog = now;
+  }
+
   broadcast('scene', { ...sceneData, _seq: sceneSeq });
 
   // Respond with commands for Godot

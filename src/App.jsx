@@ -267,9 +267,10 @@ export default function App() {
   }, [sceneData]);
 
   // ─── WEBSOCKET — RECEIVE SCENE DATA FROM SERVER ─────────
-  // Scene data only changes when Godot actually POSTs to /api/scene.
-  // No simulation, no random data. Values stay until next real update.
+  // Scene data updates on every Godot POST (up to 10/s).
+  // Log is throttled to ~2/s to stay readable.
   const wsRef = useRef(null);
+  const lastLogTime = useRef(0);
 
   useEffect(() => {
     let closed = false;
@@ -283,7 +284,6 @@ export default function App() {
 
       ws.onclose = () => {
         setGodotConnected(false);
-        // Reconnect after 3s if not intentionally closed
         if (!closed) setTimeout(connect, 3000);
       };
 
@@ -293,10 +293,16 @@ export default function App() {
         if (msg.type === 'scene') {
           const { _seq, ...scene } = msg.data;
           setSceneData(scene);
-          setGodotLog(prev => [...prev.slice(-14), {
-            time: new Date().toLocaleTimeString(),
-            data: `#${_seq ?? '?'} F:${scene.flowers} E:${scene.evergreen} T:${scene.thirdPlant}`,
-          }]);
+
+          // Throttle log entries to ~2/s so the panel stays readable
+          const now = Date.now();
+          if (now - lastLogTime.current >= 500) {
+            lastLogTime.current = now;
+            setGodotLog(prev => [...prev.slice(-14), {
+              time: new Date().toLocaleTimeString(),
+              data: `#${_seq ?? '?'} F:${scene.flowers} E:${scene.evergreen} T:${scene.thirdPlant}`,
+            }]);
+          }
         }
       };
     }
