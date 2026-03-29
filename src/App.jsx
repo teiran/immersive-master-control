@@ -76,6 +76,9 @@ export default function App() {
     groupControllerRef.current.onGroupUpdate = (groupId, updates) => {
       setTrackGroups(prev => prev.map(g => g.id === groupId ? { ...g, ...updates } : g));
     };
+    groupControllerRef.current.getLatestGroup = (groupId) => {
+      return trackGroupsRef.current.find(g => g.id === groupId);
+    };
   }, []);
 
   // ─── RESTORE SAVED STATE ON STARTUP ─────────────────────

@@ -991,6 +991,40 @@ function TrackGroupRow({
             )}
           </div>
 
+          {/* Auto-advance timer */}
+          <div style={{
+            padding: '4px 0', borderBottom: `1px solid ${theme.panelBorder}22`,
+            marginBottom: 4,
+          }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+              <input type="checkbox" checked={!!group.autoAdvance}
+                onChange={e => onUpdate({ autoAdvance: e.target.checked })} />
+              <span style={{ fontSize: 9, color: theme.textDim }}>
+                Auto-advance — switch track every
+              </span>
+            </label>
+            {group.autoAdvance && (
+              <div style={{ marginTop: 4, display: 'flex', flexDirection: 'column', gap: 4, marginLeft: 20 }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+                  <input type="checkbox" checked={!!group.autoAdvanceRandom}
+                    onChange={e => onUpdate({ autoAdvanceRandom: e.target.checked })} />
+                  <span style={{ fontSize: 9, color: theme.textDim }}>Random interval</span>
+                </label>
+                {group.autoAdvanceRandom ? (
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <NumberInput label="Min s" value={((group.autoAdvanceMin ?? 5000) / 1000)}
+                      onChange={v => onUpdate({ autoAdvanceMin: v * 1000 })} min={0.5} max={300} step={0.5} />
+                    <NumberInput label="Max s" value={((group.autoAdvanceMax ?? 15000) / 1000)}
+                      onChange={v => onUpdate({ autoAdvanceMax: v * 1000 })} min={0.5} max={300} step={0.5} />
+                  </div>
+                ) : (
+                  <NumberInput label="Every s" value={((group.autoAdvanceInterval ?? 10000) / 1000)}
+                    onChange={v => onUpdate({ autoAdvanceInterval: v * 1000 })} min={0.5} max={300} step={0.5} />
+                )}
+              </div>
+            )}
+          </div>
+
           {/* Sub-tracks */}
           {group.subTracks.map((sub, idx) => (
             <div key={sub.id}

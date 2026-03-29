@@ -10,7 +10,9 @@ export class GroupPlaybackController {
   constructor(audioEngine) {
     this.engine = audioEngine;
     this.activeSubTrack = {}; // groupId → currently playing subTrack id
+    this.autoTimers = {};     // groupId → timeout id
     this.onGroupUpdate = null; // callback to update group state
+    this.getLatestGroup = null; // callback to get latest group state
   }
 
   // Get the next sub-track index based on play mode
@@ -42,8 +44,50 @@ export class GroupPlaybackController {
     return group.subTracks[index] ?? group.subTracks[0];
   }
 
+  // Get the auto-advance delay for a group (ms)
+  getAutoDelay(group) {
+    if (!group.autoAdvance) return null;
+    if (group.autoAdvanceRandom) {
+      const min = group.autoAdvanceMin ?? 5000;
+      const max = group.autoAdvanceMax ?? 15000;
+      return min + Math.random() * (max - min);
+    }
+    return group.autoAdvanceInterval ?? 10000;
+  }
+
+  // Schedule the next auto-advance
+  scheduleAutoAdvance(groupId) {
+    this.clearAutoTimer(groupId);
+    const group = this.getLatestGroup?.(groupId);
+    if (!group || !group.autoAdvance || !group.playing) return;
+
+    const delay = this.getAutoDelay(group);
+    if (delay == null) return;
+
+    this.autoTimers[groupId] = setTimeout(() => {
+      const latest = this.getLatestGroup?.(groupId);
+      if (!latest || !latest.playing || !latest.autoAdvance) return;
+      this.advanceGroup(latest);
+    }, delay);
+  }
+
+  clearAutoTimer(groupId) {
+    if (this.autoTimers[groupId]) {
+      clearTimeout(this.autoTimers[groupId]);
+      delete this.autoTimers[groupId];
+    }
+  }
+
+  // Play a sub-track in the group
+  playSub(group, sub) {
+    const vol = (group.volume / 100) * (sub.volume / 100);
+    this.engine.setLayerVolume(sub.id, group.muted ? 0 : vol);
+    this.engine.setLayerSpeed(sub.id, (sub.speed ?? 100) / 100);
+    this.activeSubTrack[group.id] = sub.id;
+    this.engine.playLayer(sub.id);
+  }
+
   // Start a loop group — plays the current sub-track on loop.
-  // Call advanceGroup() to switch to the next sub-track.
   startGroup(group) {
     if (!group.subTracks.length) return;
 
@@ -51,24 +95,18 @@ export class GroupPlaybackController {
     const sub = this.resolveSubTrack(group, nextIdx);
     if (!sub?.loaded) return;
 
-    // Stop any currently playing sub-track in this group
     this.stopGroup(group);
-
-    // Set effective volume and speed
-    const vol = (group.volume / 100) * (sub.volume / 100);
-    this.engine.setLayerVolume(sub.id, group.muted ? 0 : vol);
-    this.engine.setLayerSpeed(sub.id, (sub.speed ?? 100) / 100);
-
-    // Play on loop — stays on this sub-track until advanced
-    this.activeSubTrack[group.id] = sub.id;
-    this.engine.playLayer(sub.id);
+    this.playSub(group, sub);
 
     if (this.onGroupUpdate) {
       this.onGroupUpdate(group.id, { currentIndex: nextIdx });
     }
+
+    // Start auto-advance timer if enabled
+    this.scheduleAutoAdvance(group.id);
   }
 
-  // Advance to next sub-track in a loop group (triggered by user/event)
+  // Advance to next sub-track (manual or auto)
   advanceGroup(group) {
     if (!group.subTracks.length) return;
 
@@ -76,24 +114,22 @@ export class GroupPlaybackController {
     const sub = this.resolveSubTrack(group, nextIdx);
     if (!sub?.loaded) return;
 
-    // Stop current sub-track
     const activeId = this.activeSubTrack[group.id];
     if (activeId) this.engine.stopLayer(activeId);
 
-    // Start next on loop
-    const vol = (group.volume / 100) * (sub.volume / 100);
-    this.engine.setLayerVolume(sub.id, group.muted ? 0 : vol);
-    this.engine.setLayerSpeed(sub.id, (sub.speed ?? 100) / 100);
-    this.activeSubTrack[group.id] = sub.id;
-    this.engine.playLayer(sub.id);
+    this.playSub(group, sub);
 
     if (this.onGroupUpdate) {
       this.onGroupUpdate(group.id, { currentIndex: nextIdx });
     }
+
+    // Reschedule auto-advance
+    this.scheduleAutoAdvance(group.id);
   }
 
   // Stop a group
   stopGroup(group) {
+    this.clearAutoTimer(group.id);
     const activeId = this.activeSubTrack[group.id];
     if (activeId) {
       this.engine.stopLayer(activeId);
