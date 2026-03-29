@@ -285,7 +285,7 @@ const DIST_DIR = join(__dirname, '..', 'dist');
 if (existsSync(DIST_DIR)) {
   app.use(express.static(DIST_DIR));
   app.get('*', (req, res, next) => {
-    if (req.path.startsWith('/api') || req.path.startsWith('/data') || req.path === '/health') return next();
+    if (req.path.startsWith('/api') || req.path.startsWith('/data') || req.path === '/health' || req.path === '/ws') return next();
     res.sendFile(join(DIST_DIR, 'index.html'));
   });
 }
