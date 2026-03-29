@@ -51,13 +51,23 @@ export async function sendImageToGodot(imageBase64, metadata = {}) {
  * Send wind speed to server, which proxies to RPi.
  * POST /api/wind → { speed: 0-100 }
  */
-export async function sendWindCommand(speed) {
+export async function sendWindCommand(speed, mode) {
   const res = await fetch(`${SERVER}/api/wind`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ speed: Math.round(speed) }),
+    body: JSON.stringify({ speed: Math.round(speed), mode }),
   });
   if (!res.ok) throw new Error(`Wind HTTP ${res.status}`);
+  return res.json();
+}
+
+export async function setWindMode(mode) {
+  const res = await fetch(`${SERVER}/api/wind/mode`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ mode }),
+  });
+  if (!res.ok) throw new Error(`Wind mode HTTP ${res.status}`);
   return res.json();
 }
 

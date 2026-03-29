@@ -51,6 +51,7 @@ let sceneData = {
 
 // Environment state controlled by master (sent back to Godot)
 let environmentState = { wind: 0, scent: 'off' };
+let windMode = 'auto'; // 'auto' = Godot controls wind, 'manual' = UI slider
 let connectedClients = new Set();
 
 // ─── WEBSOCKET FOR REAL-TIME UPDATES ─────────────────────────
@@ -99,9 +100,10 @@ app.post('/api/scene', (req, res) => {
     onField: req.body.onField ?? sceneData.onField,
   };
 
-  // Forward wind to RPi if Godot sent it
-  if (req.body.wind != null) {
+  // Forward wind to RPi only in auto mode
+  if (req.body.wind != null && windMode === 'auto') {
     sendWindToRpi(req.body.wind);
+    broadcast('wind', { speed: req.body.wind, mode: 'auto' });
   }
 
   const now = Date.now();
@@ -160,10 +162,22 @@ async function sendWindToRpi(speed) {
   }
 }
 
+// Manual wind from UI — sets mode to manual, overrides Godot
 app.post('/api/wind', async (req, res) => {
   const speed = req.body.speed ?? req.body.intensity ?? 0;
+  if (req.body.mode != null) windMode = req.body.mode;
+  else windMode = 'manual';
   const result = await sendWindToRpi(speed);
-  res.json({ ok: true, rpi: result ?? 'offline' });
+  broadcast('wind', { speed, mode: windMode });
+  res.json({ ok: true, rpi: result ?? 'offline', mode: windMode });
+});
+
+// Switch wind mode without changing speed
+app.post('/api/wind/mode', (req, res) => {
+  windMode = req.body.mode || 'auto';
+  console.log(`[Wind] Mode → ${windMode}`);
+  broadcast('wind', { speed: environmentState.wind, mode: windMode });
+  res.json({ ok: true, mode: windMode });
 });
 
 app.get('/api/wind/health', async (req, res) => {

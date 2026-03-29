@@ -304,6 +304,11 @@ export default function App() {
             }]);
           }
         }
+
+        if (msg.type === 'wind') {
+          setWindAutoValue(msg.data.speed);
+          if (msg.data.mode) setWindMode(msg.data.mode);
+        }
       };
     }
 
@@ -315,31 +320,29 @@ export default function App() {
     };
   }, []);
 
-  // ─── WIND AUTO — derived from scene data ────────────────
-  useEffect(() => {
-    if (windMode === 'auto') {
-      const total = sceneData.flowers + sceneData.evergreen + sceneData.eucalyptus;
-      setWindAutoValue(Math.min(100, Math.floor((total / 800) * 100)));
-    }
-  }, [sceneData, windMode]);
+  // ─── WIND MODE SWITCH ────────────────────────────────────
+  // Notify server when mode changes so it knows whether to forward Godot wind
+  const handleWindModeChange = (mode) => {
+    setWindMode(mode);
+    api.setWindMode(mode).catch(() => {});
+  };
 
-  // ─── WIND → RPI ─────────────────────────────────────────
-  // Send on every change + resend every 5s to stay in sync
-  const windValRef = useRef(0);
-  useEffect(() => {
-    windValRef.current = windMode === 'manual' ? windIntensity : windAutoValue;
-  }, [windIntensity, windAutoValue, windMode]);
+  // ─── WIND MANUAL → RPI ─────────────────────────────────
+  // Only send from UI when in manual mode, resend every 5s
+  const windValRef = useRef(windIntensity);
+  useEffect(() => { windValRef.current = windIntensity; }, [windIntensity]);
 
   useEffect(() => {
+    if (windMode !== 'manual') return;
     function sendWind() {
-      api.sendWindCommand(windValRef.current)
+      api.sendWindCommand(windValRef.current, 'manual')
         .then(() => setRpiConnected(true))
         .catch(() => setRpiConnected(false));
     }
     sendWind();
     const id = setInterval(sendWind, 5000);
     return () => clearInterval(id);
-  }, [windIntensity, windAutoValue, windMode]);
+  }, [windIntensity, windMode]);
 
   // ─── KEYBOARD TRIGGERS ─────────────────────────────────
   useEffect(() => {
@@ -697,7 +700,7 @@ export default function App() {
         <WindPanel
           connected={rpiConnected}
           windMode={windMode}
-          setWindMode={setWindMode}
+          setWindMode={handleWindModeChange}
           windIntensity={windIntensity}
           setWindIntensity={setWindIntensity}
           windAutoValue={windAutoValue}

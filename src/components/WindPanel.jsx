@@ -53,7 +53,7 @@ export function WindPanel({
       ) : (
         <div>
           <div style={{ fontSize: 10, color: theme.textDim, marginBottom: 4 }}>
-            Auto: based on scene plant density
+            Auto: controlled by Godot
           </div>
           <Slider value={windAutoValue} onChange={() => {}} color={theme.blue} label="Auto" />
         </div>
