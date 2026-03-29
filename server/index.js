@@ -94,8 +94,8 @@ app.post('/api/scene', (req, res) => {
   sceneSeq++;
   sceneData = {
     flowers: req.body.flowers ?? sceneData.flowers,
-    evergreen: req.body.evergreen ?? sceneData.evergreen,
-    eucalyptus: req.body.eucalyptus ?? req.body.thirdPlant ?? sceneData.eucalyptus,
+    evergreen: req.body.evergreens ?? sceneData.evergreen,
+    eucalyptus: sceneData.eucalyptus,
     dayNightCycle: req.body.dayNightCycle ?? sceneData.dayNightCycle,
     waterCloseness: req.body.waterCloseness ?? sceneData.waterCloseness,
     cloudiness: req.body.cloudiness ?? sceneData.cloudiness,
@@ -111,7 +111,7 @@ app.post('/api/scene', (req, res) => {
 
   const now = Date.now();
   if (now - lastSceneLog >= 1000) {
-    console.log(`[Scene] #${sceneSeq} F:${sceneData.flowers} E:${sceneData.evergreen} U:${sceneData.eucalyptus} W:${req.body.wind ?? '-'}`);
+    console.log(`[Scene] #${sceneSeq} F:${sceneData.flowers} E:${sceneData.evergreen} W:${req.body.wind ?? '-'}`);
     lastSceneLog = now;
   }
 
