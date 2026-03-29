@@ -76,7 +76,7 @@ export function WindPanel({
 
       {/* Send interval */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
-        <NumberInput label="Send ms" value={windSendInterval}
+        <NumberInput label="Interval ms" value={windSendInterval}
           onChange={setWindSendInterval} min={100} max={60000} step={100} />
       </div>
 
