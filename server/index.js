@@ -89,12 +89,9 @@ let lastSceneLog = 0;
 app.post('/api/scene', (req, res) => {
   sceneSeq++;
   sceneData = {
-    // Plants
     flowers: req.body.flowers ?? sceneData.flowers,
     evergreen: req.body.evergreen ?? sceneData.evergreen,
     eucalyptus: req.body.eucalyptus ?? sceneData.eucalyptus,
-
-    // World state
     dayNightCycle: req.body.dayNightCycle ?? sceneData.dayNightCycle,
     waterCloseness: req.body.waterCloseness ?? sceneData.waterCloseness,
     cloudiness: req.body.cloudiness ?? sceneData.cloudiness,
@@ -102,17 +99,20 @@ app.post('/api/scene', (req, res) => {
     onField: req.body.onField ?? sceneData.onField,
   };
 
+  // Forward wind to RPi if Godot sent it
+  if (req.body.wind != null) {
+    sendWindToRpi(req.body.wind);
+  }
+
   const now = Date.now();
   if (now - lastSceneLog >= 1000) {
-    console.log(`[Scene] #${sceneSeq} F:${sceneData.flowers} E:${sceneData.evergreen} U:${sceneData.eucalyptus}`);
+    console.log(`[Scene] #${sceneSeq} F:${sceneData.flowers} E:${sceneData.evergreen} U:${sceneData.eucalyptus} W:${req.body.wind ?? '-'}`);
     lastSceneLog = now;
   }
 
   broadcast('scene', { ...sceneData, _seq: sceneSeq });
 
-  // Respond with commands for Godot
   res.json({
-    wind: environmentState.wind,
     scent: environmentState.scent,
   });
 });
@@ -144,22 +144,26 @@ app.post('/api/image', (req, res) => {
 
 const RPI_URL = process.env.RPI_URL || 'http://raspberrypi.local:8080';
 
-app.post('/api/wind', async (req, res) => {
-  const { speed } = req.body;
-  environmentState.wind = speed;
-  console.log(`[Wind] Speed: ${speed}`);
-
+async function sendWindToRpi(speed) {
+  const rounded = Math.round(speed);
+  environmentState.wind = rounded;
+  console.log(`[Wind] → POST ${RPI_URL}/set?speed=${rounded}`);
   try {
-    const rpiRes = await fetch(`${RPI_URL}/set?speed=${Math.round(speed)}`, {
+    const rpiRes = await fetch(`${RPI_URL}/set?speed=${rounded}`, {
       method: 'POST',
       signal: AbortSignal.timeout(3000),
     });
-    const text = await rpiRes.text();
-    res.json({ ok: true, rpi: text });
+    return await rpiRes.text();
   } catch (err) {
     console.warn(`[Wind] RPi unreachable: ${err.message}`);
-    res.json({ ok: true, rpi: 'offline', mock: true });
+    return null;
   }
+}
+
+app.post('/api/wind', async (req, res) => {
+  const speed = req.body.speed ?? req.body.intensity ?? 0;
+  const result = await sendWindToRpi(speed);
+  res.json({ ok: true, rpi: result ?? 'offline' });
 });
 
 app.get('/api/wind/health', async (req, res) => {
