@@ -1,6 +1,6 @@
 import React from 'react';
 import { Panel, Btn, NumberInput } from './ui.jsx';
-import { SCENT_TYPES } from '../config.js';
+import { SCENT_TYPES, CONFIG } from '../config.js';
 import { theme, fonts } from '../theme.js';
 
 export function SmellPanel({
