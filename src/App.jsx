@@ -43,6 +43,7 @@ export default function App() {
   const [scentMode, setScentMode] = useState('manual'); // 'manual' | 'auto'
   const [scentPercentages, setScentPercentages] = useState({ flowers: 0, evergreen: 0, eucalyptus: 0 });
   const [scentThreshold, setScentThreshold] = useState(20); // plants needed for 100% scent
+  const [scentCycleMs, setScentCycleMs] = useState(CONFIG.SCENT_CYCLE_INTERVAL); // cycle length ms
   const [scentDuty, setScentDuty] = useState(0); // 0-100% of cycle active
 
   // ─── AUDIO ──────────────────────────────────────────────
@@ -102,6 +103,7 @@ export default function App() {
         if (saved.scentMode) setScentMode(saved.scentMode);
         if (saved.activeScent) setActiveScent(saved.activeScent);
         if (saved.scentThreshold != null) setScentThreshold(saved.scentThreshold);
+        if (saved.scentCycleMs != null) setScentCycleMs(saved.scentCycleMs);
 
         // Re-load audio buffers from server (decoding works even with suspended context)
         const engine = audioEngineRef.current;
@@ -209,9 +211,10 @@ export default function App() {
         scentMode,
         activeScent,
         scentThreshold,
+        scentCycleMs,
       }).catch(() => {});
     }, 2000);
-  }, [tracks, trackGroups, masterVolume, windMode, windIntensity, windSendInterval, scentMode, activeScent, scentThreshold]);
+  }, [tracks, trackGroups, masterVolume, windMode, windIntensity, windSendInterval, scentMode, activeScent, scentThreshold, scentCycleMs]);
 
   // ─── AUDIO ENGINE SYNC ─────────────────────────────────
   useEffect(() => {
@@ -563,8 +566,7 @@ export default function App() {
         eucalyptus: Math.round(pct.eucalyptus * 100),
       });
 
-      const interval = CONFIG.SCENT_CYCLE_INTERVAL;
-      const activeTime = interval * duty;
+      const activeTime = scentCycleMs * duty;
 
       const schedule = [
         { ...SCENT_TYPES.find(s => s.id === 'flowers'), duration: pct.flowers * activeTime },
@@ -593,13 +595,13 @@ export default function App() {
     };
 
     cycle();
-    const iv = setInterval(cycle, CONFIG.SCENT_CYCLE_INTERVAL);
+    const iv = setInterval(cycle, scentCycleMs);
 
     return () => {
       clearInterval(iv);
       scentTimers.current.forEach(t => clearTimeout(t));
     };
-  }, [scentMode, scentThreshold]);
+  }, [scentMode, scentThreshold, scentCycleMs]);
 
   // ─── SERIAL CONNECT ─────────────────────────────────────
   const connectSerial = async () => {
@@ -764,6 +766,8 @@ export default function App() {
           scentThreshold={scentThreshold}
           setScentThreshold={setScentThreshold}
           scentDuty={scentDuty}
+          scentCycleMs={scentCycleMs}
+          setScentCycleMs={setScentCycleMs}
         />
 
         <StoryPanel

@@ -1,14 +1,15 @@
 import React from 'react';
-import { Panel, Btn } from './ui.jsx';
-import { SCENT_TYPES, CONFIG } from '../config.js';
+import { Panel, Btn, NumberInput } from './ui.jsx';
+import { SCENT_TYPES } from '../config.js';
 import { theme, fonts } from '../theme.js';
 
 export function SmellPanel({
   connected, onConnect, activeScent, onScentSelect,
   scentMode, setScentMode, scentPercentages,
   scentThreshold, setScentThreshold, scentDuty,
+  scentCycleMs, setScentCycleMs,
 }) {
-  const cycleSec = CONFIG.SCENT_CYCLE_INTERVAL / 1000;
+  const cycleSec = scentCycleMs / 1000;
   const activeSec = ((scentDuty / 100) * cycleSec).toFixed(1);
 
   return (
@@ -30,8 +31,12 @@ export function SmellPanel({
       {scentMode === 'auto' ? (
         /* Auto mode — show duty cycle, threshold, and percentages */
         <div>
-          <div style={{ fontSize: 9, color: theme.textDim, marginBottom: 4, letterSpacing: '0.1em', textTransform: 'uppercase' }}>
-            Cycle: {cycleSec}s — active: {activeSec}s ({scentDuty}%)
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+            <NumberInput label="Cycle ms" value={scentCycleMs}
+              onChange={setScentCycleMs} min={1000} max={60000} step={500} />
+            <span style={{ fontSize: 9, color: theme.textDim, letterSpacing: '0.1em', textTransform: 'uppercase' }}>
+              active: {activeSec}s ({scentDuty}%)
+            </span>
           </div>
 
           {/* Duty cycle bar */}
