@@ -52,6 +52,8 @@ let sceneData = {
 // Environment state controlled by master (sent back to Godot)
 let environmentState = { wind: 0, scent: 'off' };
 let windMode = 'auto'; // 'auto' = Godot controls wind, 'manual' = UI slider
+let windSendInterval = 5000; // ms between RPi sends in auto mode
+let lastWindSend = 0;
 let connectedClients = new Set();
 
 // ─── WEBSOCKET FOR REAL-TIME UPDATES ─────────────────────────
@@ -100,9 +102,13 @@ app.post('/api/scene', (req, res) => {
     onField: req.body.onField ?? sceneData.onField,
   };
 
-  // Forward wind to RPi only in auto mode
+  // Forward wind to RPi only in auto mode, throttled by windSendInterval
   if (req.body.wind != null && windMode === 'auto') {
-    sendWindToRpi(req.body.wind);
+    const now = Date.now();
+    if (now - lastWindSend >= windSendInterval) {
+      lastWindSend = now;
+      sendWindToRpi(req.body.wind);
+    }
     broadcast('wind', { speed: req.body.wind, mode: 'auto' });
   }
 
@@ -172,12 +178,13 @@ app.post('/api/wind', async (req, res) => {
   res.json({ ok: true, rpi: result ?? 'offline', mode: windMode });
 });
 
-// Switch wind mode without changing speed
+// Switch wind mode and/or send interval
 app.post('/api/wind/mode', (req, res) => {
-  windMode = req.body.mode || 'auto';
-  console.log(`[Wind] Mode → ${windMode}`);
+  if (req.body.mode) windMode = req.body.mode;
+  if (req.body.interval != null) windSendInterval = req.body.interval * 1000;
+  console.log(`[Wind] Mode → ${windMode}, interval → ${windSendInterval}ms`);
   broadcast('wind', { speed: environmentState.wind, mode: windMode });
-  res.json({ ok: true, mode: windMode });
+  res.json({ ok: true, mode: windMode, interval: windSendInterval / 1000 });
 });
 
 app.get('/api/wind/health', async (req, res) => {

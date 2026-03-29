@@ -61,11 +61,14 @@ export async function sendWindCommand(speed, mode) {
   return res.json();
 }
 
-export async function setWindMode(mode) {
+export async function setWindMode(mode, interval) {
+  const body = {};
+  if (mode != null) body.mode = mode;
+  if (interval != null) body.interval = interval;
   const res = await fetch(`${SERVER}/api/wind/mode`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ mode }),
+    body: JSON.stringify(body),
   });
   if (!res.ok) throw new Error(`Wind mode HTTP ${res.status}`);
   return res.json();

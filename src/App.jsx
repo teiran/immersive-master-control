@@ -34,6 +34,7 @@ export default function App() {
   const [windMode, setWindMode] = useState('auto');
   const [windIntensity, setWindIntensity] = useState(30);
   const [windAutoValue, setWindAutoValue] = useState(0);
+  const [windSendInterval, setWindSendInterval] = useState(5); // seconds between RPi sends
 
   // ─── SMELL ──────────────────────────────────────────────
   const [activeScent, setActiveScent] = useState('off');
@@ -95,6 +96,7 @@ export default function App() {
         if (saved.masterVolume != null) setMasterVolume(saved.masterVolume);
         if (saved.windMode) setWindMode(saved.windMode);
         if (saved.windIntensity != null) setWindIntensity(saved.windIntensity);
+        if (saved.windSendInterval != null) setWindSendInterval(saved.windSendInterval);
         if (saved.scentMode) setScentMode(saved.scentMode);
         if (saved.activeScent) setActiveScent(saved.activeScent);
         if (saved.scentThreshold != null) setScentThreshold(saved.scentThreshold);
@@ -201,12 +203,13 @@ export default function App() {
         masterVolume,
         windMode,
         windIntensity,
+        windSendInterval,
         scentMode,
         activeScent,
         scentThreshold,
       }).catch(() => {});
     }, 2000);
-  }, [tracks, trackGroups, masterVolume, windMode, windIntensity, scentMode, activeScent, scentThreshold]);
+  }, [tracks, trackGroups, masterVolume, windMode, windIntensity, windSendInterval, scentMode, activeScent, scentThreshold]);
 
   // ─── AUDIO ENGINE SYNC ─────────────────────────────────
   useEffect(() => {
@@ -325,14 +328,18 @@ export default function App() {
   }, []);
 
   // ─── WIND MODE SWITCH ────────────────────────────────────
-  // Notify server when mode changes so it knows whether to forward Godot wind
   const handleWindModeChange = (mode) => {
     setWindMode(mode);
-    api.setWindMode(mode).catch(() => {});
+    api.setWindMode(mode, windSendInterval).catch(() => {});
+  };
+
+  const handleWindIntervalChange = (sec) => {
+    setWindSendInterval(sec);
+    api.setWindMode(null, sec).catch(() => {});
   };
 
   // ─── WIND MANUAL → RPI ─────────────────────────────────
-  // Only send from UI when in manual mode, resend every 5s
+  // Only send from UI when in manual mode, resend at configurable interval
   const windValRef = useRef(windIntensity);
   useEffect(() => { windValRef.current = windIntensity; }, [windIntensity]);
 
@@ -344,9 +351,9 @@ export default function App() {
         .catch(() => setRpiConnected(false));
     }
     sendWind();
-    const id = setInterval(sendWind, 5000);
+    const id = setInterval(sendWind, windSendInterval * 1000);
     return () => clearInterval(id);
-  }, [windIntensity, windMode]);
+  }, [windIntensity, windMode, windSendInterval]);
 
   // ─── KEYBOARD TRIGGERS ─────────────────────────────────
   useEffect(() => {
@@ -726,6 +733,8 @@ export default function App() {
           setWindIntensity={setWindIntensity}
           windAutoValue={windAutoValue}
           effectiveWind={effectiveWind}
+          windSendInterval={windSendInterval}
+          setWindSendInterval={handleWindIntervalChange}
         />
 
         {/* Second row */}

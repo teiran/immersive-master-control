@@ -9,6 +9,7 @@ export function WindPanel({
   windIntensity, setWindIntensity,
   windAutoValue,
   effectiveWind,
+  windSendInterval, setWindSendInterval,
 }) {
   const [windLog, setWindLog] = useState([]);
   const effectiveRef = useRef(effectiveWind);
@@ -82,6 +83,20 @@ export function WindPanel({
           zIndex: 1, fontFamily: fonts.mono,
         }}>
           {effectiveWind}%
+        </span>
+      </div>
+
+      {/* Send interval */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
+        <span style={{ fontSize: 9, color: theme.textDim, whiteSpace: 'nowrap' }}>
+          Send every
+        </span>
+        <input type="range" min={1} max={30} value={windSendInterval}
+          onChange={e => setWindSendInterval(Number(e.target.value))}
+          style={{ flex: 1, height: 4 }}
+        />
+        <span style={{ fontSize: 10, fontFamily: fonts.mono, color: theme.text, minWidth: 24, textAlign: 'right' }}>
+          {windSendInterval}s
         </span>
       </div>
 
