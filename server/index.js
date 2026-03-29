@@ -33,6 +33,8 @@ app.use('/data/audio', express.static(AUDIO_DIR));
 // ─── STATE ───────────────────────────────────────────────────
 
 // Scene data from Godot (updated every ~1s poll)
+let sceneSeq = 0; // sequence counter for incoming POSTs
+
 let sceneData = {
   // Plant counts (3 scent-mapped types + 1 TBD)
   flowers: 0,
@@ -80,8 +82,9 @@ function broadcast(type, data) {
 
 // ─── GODOT ENDPOINTS ─────────────────────────────────────────
 
-// Godot polls this endpoint every ~1s with current world state
+// Godot sends scene state — every POST is logged with a sequence number
 app.post('/api/scene', (req, res) => {
+  sceneSeq++;
   sceneData = {
     // Plants
     flowers: req.body.flowers ?? sceneData.flowers,
@@ -96,7 +99,8 @@ app.post('/api/scene', (req, res) => {
     onField: req.body.onField ?? sceneData.onField,
   };
 
-  broadcast('scene', sceneData);
+  console.log(`[Scene] #${sceneSeq} F:${sceneData.flowers} E:${sceneData.evergreen} T:${sceneData.thirdPlant}`);
+  broadcast('scene', { ...sceneData, _seq: sceneSeq });
 
   // Respond with commands for Godot
   res.json({

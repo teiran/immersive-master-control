@@ -37,7 +37,7 @@ export function GodotPanel({ connected, sceneData, godotLog }) {
       {/* Incoming data log */}
       <div style={{
         background: theme.bg, borderRadius: 4, padding: 8,
-        maxHeight: 80, overflowY: 'auto', fontFamily: fonts.mono,
+        maxHeight: 120, overflowY: 'auto', fontFamily: fonts.mono,
         fontSize: 9, color: theme.textDim,
       }}>
         {godotLog.length === 0 && <div>Waiting for Godot data...</div>}

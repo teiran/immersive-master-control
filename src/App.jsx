@@ -291,10 +291,11 @@ export default function App() {
         const msg = JSON.parse(event.data);
 
         if (msg.type === 'scene') {
-          setSceneData(msg.data);
-          setGodotLog(prev => [...prev.slice(-8), {
+          const { _seq, ...scene } = msg.data;
+          setSceneData(scene);
+          setGodotLog(prev => [...prev.slice(-14), {
             time: new Date().toLocaleTimeString(),
-            data: `F:${msg.data.flowers} E:${msg.data.evergreen} T:${msg.data.thirdPlant}`,
+            data: `#${_seq ?? '?'} F:${scene.flowers} E:${scene.evergreen} T:${scene.thirdPlant}`,
           }]);
         }
       };
