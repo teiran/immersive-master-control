@@ -5,8 +5,8 @@ export const CONFIG = {
   // Godot game server — receives scene data, sends back environment state
   GODOT_API: "http://localhost:8080",
 
-  // Raspberry Pi wind machine — Flask/FastAPI endpoint
-  RPI_WIND_API: "http://raspberrypi.local:5000",
+  // Raspberry Pi wind machine
+  RPI_WIND_API: "http://raspberrypi.local:8080",
 
   // ElevenLabs TTS for AI story narration
   ELEVENLABS_API: "https://api.elevenlabs.io/v1",

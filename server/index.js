@@ -142,25 +142,32 @@ app.post('/api/image', (req, res) => {
 // ─── WIND PROXY TO RASPBERRY PI ──────────────────────────────
 // If you want the server to relay wind commands to RPi
 
-const RPI_URL = process.env.RPI_URL || 'http://raspberrypi.local:5000';
+const RPI_URL = process.env.RPI_URL || 'http://raspberrypi.local:8080';
 
 app.post('/api/wind', async (req, res) => {
-  const { intensity } = req.body;
-  environmentState.wind = intensity;
-  console.log(`[Wind] Intensity: ${intensity}%`);
+  const { speed } = req.body;
+  environmentState.wind = speed;
+  console.log(`[Wind] Speed: ${speed}`);
 
   try {
-    const rpiRes = await fetch(`${RPI_URL}/wind`, {
+    const rpiRes = await fetch(`${RPI_URL}/set?speed=${Math.round(speed)}`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ intensity }),
       signal: AbortSignal.timeout(3000),
     });
-    const data = await rpiRes.json();
-    res.json({ ok: true, rpi: data });
+    const text = await rpiRes.text();
+    res.json({ ok: true, rpi: text });
   } catch (err) {
     console.warn(`[Wind] RPi unreachable: ${err.message}`);
     res.json({ ok: true, rpi: 'offline', mock: true });
+  }
+});
+
+app.get('/api/wind/health', async (req, res) => {
+  try {
+    await fetch(RPI_URL, { signal: AbortSignal.timeout(3000) });
+    res.json({ ok: true });
+  } catch {
+    res.status(503).json({ ok: false });
   }
 });
 

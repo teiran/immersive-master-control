@@ -72,7 +72,7 @@ export function WindPanel({
       </div>
 
       <div style={{ fontSize: 9, color: theme.textDim }}>
-        RPi endpoint: {CONFIG.RPI_WIND_API}
+        RPi: {CONFIG.RPI_WIND_API}/set?speed=N
       </div>
     </Panel>
   );

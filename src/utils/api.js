@@ -3,6 +3,8 @@
 
 import { CONFIG } from '../config.js';
 
+const SERVER = `http://${location.hostname}:3001`;
+
 // ─── GODOT ──────────────────────────────────────────────────
 
 /**
@@ -46,33 +48,30 @@ export async function sendImageToGodot(imageBase64, metadata = {}) {
 // ─── RASPBERRY PI WIND ──────────────────────────────────────
 
 /**
- * Send wind intensity to Raspberry Pi.
- * POST /wind → { intensity: 0-100 }
+ * Send wind speed to server, which proxies to RPi.
+ * POST /api/wind → { speed: 0-100 }
  */
-export async function sendWindCommand(intensity) {
-  const res = await fetch(`${CONFIG.RPI_WIND_API}/wind`, {
+export async function sendWindCommand(speed) {
+  const res = await fetch(`${SERVER}/api/wind`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ intensity: Math.round(intensity) }),
+    body: JSON.stringify({ speed: Math.round(speed) }),
   });
-  if (!res.ok) throw new Error(`RPi HTTP ${res.status}`);
+  if (!res.ok) throw new Error(`Wind HTTP ${res.status}`);
   return res.json();
 }
 
 /**
- * Check RPi connection.
- * GET /health → { status: 'ok' }
+ * Check RPi connection via server proxy.
  */
 export async function checkRpiHealth() {
-  const res = await fetch(`${CONFIG.RPI_WIND_API}/health`, {
+  const res = await fetch(`${SERVER}/api/wind/health`, {
     signal: AbortSignal.timeout(3000),
   });
   return res.ok;
 }
 
 // ─── AUDIO UPLOAD & STATE PERSISTENCE ────────────────────────
-
-const SERVER = `http://${location.hostname}:3001`;
 
 /**
  * Upload an audio file to the server. Returns the server path.
