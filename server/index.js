@@ -181,10 +181,10 @@ app.post('/api/wind', async (req, res) => {
 // Switch wind mode and/or send interval
 app.post('/api/wind/mode', (req, res) => {
   if (req.body.mode) windMode = req.body.mode;
-  if (req.body.interval != null) windSendInterval = req.body.interval * 1000;
+  if (req.body.intervalMs != null) windSendInterval = req.body.intervalMs;
   console.log(`[Wind] Mode → ${windMode}, interval → ${windSendInterval}ms`);
   broadcast('wind', { speed: environmentState.wind, mode: windMode });
-  res.json({ ok: true, mode: windMode, interval: windSendInterval / 1000 });
+  res.json({ ok: true, mode: windMode, intervalMs: windSendInterval });
 });
 
 app.get('/api/wind/health', async (req, res) => {
