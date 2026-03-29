@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Panel, Slider, Btn } from './ui.jsx';
 import { CONFIG } from '../config.js';
 import { theme, fonts } from '../theme.js';
@@ -10,6 +10,20 @@ export function WindPanel({
   windAutoValue,
   effectiveWind,
 }) {
+  const [windLog, setWindLog] = useState([]);
+  const effectiveRef = useRef(effectiveWind);
+  effectiveRef.current = effectiveWind;
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      setWindLog(prev => [...prev.slice(-5), {
+        time: new Date().toLocaleTimeString(),
+        speed: effectiveRef.current,
+      }]);
+    }, 5000);
+    return () => clearInterval(id);
+  }, []);
+
   return (
     <Panel title="Wind Machine" icon="💨" status={connected ? 'connected' : 'warning'}>
       <div style={{ display: 'flex', gap: 6, marginBottom: 4 }}>
@@ -69,6 +83,20 @@ export function WindPanel({
         }}>
           {effectiveWind}%
         </span>
+      </div>
+
+      {/* Wind speed log */}
+      <div style={{
+        background: theme.bg, borderRadius: 4, padding: 6, marginTop: 4,
+        maxHeight: 60, overflowY: 'auto', fontFamily: fonts.mono,
+        fontSize: 9, color: theme.textDim,
+      }}>
+        {windLog.length === 0 && <div>Logging every 5s...</div>}
+        {windLog.map((l, i) => (
+          <div key={i}>
+            <span style={{ color: theme.accent }}>{l.time}</span> speed: {l.speed}
+          </div>
+        ))}
       </div>
 
       <div style={{ fontSize: 9, color: theme.textDim }}>
