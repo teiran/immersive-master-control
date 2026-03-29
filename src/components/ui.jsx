@@ -98,6 +98,27 @@ export function Slider({ value, onChange, min = 0, max = 100, color = theme.acce
 
 // ─── BUTTON ──────────────────────────────────────────────────
 
+// ─── NUMBER INPUT ───────────────────────────────────────────
+
+export function NumberInput({ label, value, onChange, min = 0, max = 100, step = 1 }) {
+  return (
+    <label style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+      <span style={{ fontSize: 8, color: theme.textDim }}>{label}</span>
+      <input
+        type="number" value={value} min={min} max={max} step={step}
+        onChange={e => onChange(Number(e.target.value))}
+        style={{
+          width: 55, background: theme.panel, border: `1px solid ${theme.panelBorder}`,
+          color: theme.text, padding: '2px 4px', borderRadius: 3,
+          fontFamily: fonts.mono, fontSize: 9, outline: 'none',
+        }}
+      />
+    </label>
+  );
+}
+
+// ─── BUTTON ──────────────────────────────────────────────────
+
 export function Btn({ children, onClick, active, color = theme.accent, small, disabled }) {
   return (
     <button onClick={onClick} disabled={disabled} style={{

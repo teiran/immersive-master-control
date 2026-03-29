@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { Panel, Slider, Btn } from './ui.jsx';
+import { Panel, Slider, Btn, NumberInput } from './ui.jsx';
 import { Waveform } from './Waveform.jsx';
 import { SCENE_LINK_OPTIONS } from '../config.js';
 import { theme, fonts } from '../theme.js';
@@ -868,23 +868,6 @@ function TriggerButton({
         </div>
       )}
     </div>
-  );
-}
-
-function NumberInput({ label, value, onChange, min = 0, max = 100, step = 1 }) {
-  return (
-    <label style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-      <span style={{ fontSize: 8, color: theme.textDim }}>{label}</span>
-      <input
-        type="number" value={value} min={min} max={max} step={step}
-        onChange={e => onChange(Number(e.target.value))}
-        style={{
-          width: 55, background: theme.panel, border: `1px solid ${theme.panelBorder}`,
-          color: theme.text, padding: '2px 4px', borderRadius: 3,
-          fontFamily: fonts.mono, fontSize: 9, outline: 'none',
-        }}
-      />
-    </label>
   );
 }
 

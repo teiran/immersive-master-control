@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Panel, Slider, Btn } from './ui.jsx';
+import { Panel, Slider, Btn, NumberInput } from './ui.jsx';
 import { CONFIG } from '../config.js';
 import { theme, fonts } from '../theme.js';
 
@@ -87,17 +87,9 @@ export function WindPanel({
       </div>
 
       {/* Send interval */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
-        <span style={{ fontSize: 9, color: theme.textDim, whiteSpace: 'nowrap' }}>
-          Send every
-        </span>
-        <input type="range" min={1} max={30} value={windSendInterval}
-          onChange={e => setWindSendInterval(Number(e.target.value))}
-          style={{ flex: 1, height: 4 }}
-        />
-        <span style={{ fontSize: 10, fontFamily: fonts.mono, color: theme.text, minWidth: 24, textAlign: 'right' }}>
-          {windSendInterval}s
-        </span>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
+        <NumberInput label="Send every (s)" value={windSendInterval}
+          onChange={setWindSendInterval} min={1} max={60} step={1} />
       </div>
 
       {/* Wind speed log */}
