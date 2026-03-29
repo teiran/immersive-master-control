@@ -10,20 +10,8 @@ export function WindPanel({
   windAutoValue,
   effectiveWind,
   windSendInterval, setWindSendInterval,
+  windLog,
 }) {
-  const [windLog, setWindLog] = useState([]);
-  const effectiveRef = useRef(effectiveWind);
-  effectiveRef.current = effectiveWind;
-
-  useEffect(() => {
-    const id = setInterval(() => {
-      setWindLog(prev => [...prev.slice(-5), {
-        time: new Date().toLocaleTimeString(),
-        speed: effectiveRef.current,
-      }]);
-    }, 5000);
-    return () => clearInterval(id);
-  }, []);
 
   return (
     <Panel title="Wind Machine" icon="💨" status={connected ? 'connected' : 'warning'}>

@@ -35,6 +35,7 @@ export default function App() {
   const [windIntensity, setWindIntensity] = useState(30);
   const [windAutoValue, setWindAutoValue] = useState(0);
   const [windSendInterval, setWindSendInterval] = useState(5000); // ms between RPi sends
+  const [windLog, setWindLog] = useState([]);
 
   // ─── SMELL ──────────────────────────────────────────────
   const [activeScent, setActiveScent] = useState('off');
@@ -315,6 +316,10 @@ export default function App() {
         if (msg.type === 'wind') {
           setWindAutoValue(msg.data.speed);
           if (msg.data.mode) setWindMode(msg.data.mode);
+          setWindLog(prev => [...prev.slice(-7), {
+            time: new Date().toLocaleTimeString(),
+            speed: msg.data.speed,
+          }]);
         }
       };
     }
@@ -347,7 +352,13 @@ export default function App() {
     if (windMode !== 'manual') return;
     function sendWind() {
       api.sendWindCommand(windValRef.current, 'manual')
-        .then(() => setRpiConnected(true))
+        .then(() => {
+          setRpiConnected(true);
+          setWindLog(prev => [...prev.slice(-7), {
+            time: new Date().toLocaleTimeString(),
+            speed: windValRef.current,
+          }]);
+        })
         .catch(() => setRpiConnected(false));
     }
     sendWind();
@@ -735,6 +746,7 @@ export default function App() {
           effectiveWind={effectiveWind}
           windSendInterval={windSendInterval}
           setWindSendInterval={handleWindIntervalChange}
+          windLog={windLog}
         />
 
         {/* Second row */}
