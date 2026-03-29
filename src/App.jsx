@@ -324,14 +324,21 @@ export default function App() {
   }, [sceneData, windMode]);
 
   // ─── WIND → RPI ─────────────────────────────────────────
+  // Send on every change + resend every 5s to stay in sync
+  const windValRef = useRef(0);
   useEffect(() => {
-    const val = windMode === 'manual' ? windIntensity : windAutoValue;
+    windValRef.current = windMode === 'manual' ? windIntensity : windAutoValue;
+  }, [windIntensity, windAutoValue, windMode]);
 
-    api.sendWindCommand(val)
-      .then(() => setRpiConnected(true))
-      .catch(() => {
-        setRpiConnected(false);
-      });
+  useEffect(() => {
+    function sendWind() {
+      api.sendWindCommand(windValRef.current)
+        .then(() => setRpiConnected(true))
+        .catch(() => setRpiConnected(false));
+    }
+    sendWind();
+    const id = setInterval(sendWind, 5000);
+    return () => clearInterval(id);
   }, [windIntensity, windAutoValue, windMode]);
 
   // ─── KEYBOARD TRIGGERS ─────────────────────────────────
