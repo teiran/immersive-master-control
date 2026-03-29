@@ -29,6 +29,7 @@ export default function App() {
     dayNightCycle: 0, waterCloseness: 0, cloudiness: 0, rain: 0, onField: false,
   });
   const [godotLog, setGodotLog] = useState([]);
+  const sceneDataRef = useRef(sceneData);
 
   // ─── WIND ───────────────────────────────────────────────
   const [windMode, setWindMode] = useState('auto');
@@ -301,6 +302,7 @@ export default function App() {
         if (msg.type === 'scene') {
           const { _seq, ...scene } = msg.data;
           setSceneData(scene);
+          sceneDataRef.current = scene;
 
           // Throttle log entries to ~2/s so the panel stays readable
           const now = Date.now();
@@ -536,7 +538,8 @@ export default function App() {
       clearTimers();
       scentTimers.current = [];
 
-      const total = sceneData.flowers + sceneData.evergreen + sceneData.eucalyptus;
+      const sd = sceneDataRef.current;
+      const total = sd.flowers + sd.evergreen + sd.eucalyptus;
       if (total === 0) {
         serial.current.send('stop\n');
         setActiveScent('off');
@@ -550,9 +553,9 @@ export default function App() {
       setScentDuty(Math.round(duty * 100));
 
       const pct = {
-        flowers: sceneData.flowers / total,
-        evergreen: sceneData.evergreen / total,
-        eucalyptus: sceneData.eucalyptus / total,
+        flowers: sd.flowers / total,
+        evergreen: sd.evergreen / total,
+        eucalyptus: sd.eucalyptus / total,
       };
       setScentPercentages({
         flowers: Math.round(pct.flowers * 100),
@@ -596,7 +599,7 @@ export default function App() {
       clearInterval(iv);
       scentTimers.current.forEach(t => clearTimeout(t));
     };
-  }, [scentMode, sceneData, scentThreshold]);
+  }, [scentMode, scentThreshold]);
 
   // ─── SERIAL CONNECT ─────────────────────────────────────
   const connectSerial = async () => {
