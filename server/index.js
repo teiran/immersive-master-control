@@ -53,7 +53,8 @@ let sceneData = {
 let environmentState = { wind: 0, scent: 'off' };
 let windMode = 'auto'; // 'auto' = Godot controls wind, 'manual' = UI slider
 let windSendInterval = 5000; // ms between RPi sends in auto mode
-let lastWindSend = 0;
+let latestGodotWind = 0; // latest wind value from Godot
+let windTimer = null; // auto-send timer
 let connectedClients = new Set();
 
 // ─── WEBSOCKET FOR REAL-TIME UPDATES ─────────────────────────
@@ -102,14 +103,10 @@ app.post('/api/scene', (req, res) => {
     onField: req.body.onField ?? sceneData.onField,
   };
 
-  // Forward wind to RPi only in auto mode, throttled by windSendInterval
-  if (req.body.wind != null && windMode === 'auto') {
-    const now = Date.now();
-    if (now - lastWindSend >= windSendInterval) {
-      lastWindSend = now;
-      sendWindToRpi(req.body.wind);
-    }
-    broadcast('wind', { speed: req.body.wind, mode: 'auto' });
+  // Store latest wind from Godot, timer handles sending to RPi
+  if (req.body.wind != null) {
+    latestGodotWind = req.body.wind;
+    broadcast('wind', { speed: req.body.wind, mode: windMode });
   }
 
   const now = Date.now();
@@ -168,11 +165,33 @@ async function sendWindToRpi(speed) {
   }
 }
 
-// Manual wind from UI — sets mode to manual, overrides Godot
+// ─── WIND AUTO TIMER ────────────────────────────────────────
+// Sends latest Godot wind value to RPi at the configured interval
+function startWindTimer() {
+  stopWindTimer();
+  if (windMode !== 'auto') return;
+  windTimer = setInterval(() => {
+    sendWindToRpi(latestGodotWind);
+  }, windSendInterval);
+  console.log(`[Wind] Auto timer started: every ${windSendInterval}ms`);
+}
+
+function stopWindTimer() {
+  if (windTimer) {
+    clearInterval(windTimer);
+    windTimer = null;
+  }
+}
+
+// Start auto timer on boot
+startWindTimer();
+
+// Manual wind from UI — stops auto timer, sends directly
 app.post('/api/wind', async (req, res) => {
   const speed = req.body.speed ?? req.body.intensity ?? 0;
   if (req.body.mode != null) windMode = req.body.mode;
   else windMode = 'manual';
+  stopWindTimer();
   const result = await sendWindToRpi(speed);
   broadcast('wind', { speed, mode: windMode });
   res.json({ ok: true, rpi: result ?? 'offline', mode: windMode });
@@ -183,6 +202,7 @@ app.post('/api/wind/mode', (req, res) => {
   if (req.body.mode) windMode = req.body.mode;
   if (req.body.intervalMs != null) windSendInterval = req.body.intervalMs;
   console.log(`[Wind] Mode → ${windMode}, interval → ${windSendInterval}ms`);
+  startWindTimer(); // restart timer with new settings
   broadcast('wind', { speed: environmentState.wind, mode: windMode });
   res.json({ ok: true, mode: windMode, intervalMs: windSendInterval });
 });
