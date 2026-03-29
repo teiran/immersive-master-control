@@ -280,6 +280,16 @@ app.get('/api/state', (req, res) => {
   }
 });
 
+// ─── SERVE FRONTEND (production build) ──────────────────────
+const DIST_DIR = join(__dirname, '..', 'dist');
+if (existsSync(DIST_DIR)) {
+  app.use(express.static(DIST_DIR));
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api') || req.path.startsWith('/data') || req.path === '/health') return next();
+    res.sendFile(join(DIST_DIR, 'index.html'));
+  });
+}
+
 // ─── HEALTH ──────────────────────────────────────────────────
 
 app.get('/health', (req, res) => {
