@@ -6,8 +6,10 @@ import { theme, fonts } from '../theme.js';
 export function SmellPanel({
   connected, onConnect, activeScent, onScentSelect,
   scentMode, setScentMode, scentPercentages,
+  scentThreshold, setScentThreshold, scentDuty,
 }) {
   const cycleSec = CONFIG.SCENT_CYCLE_INTERVAL / 1000;
+  const activeSec = ((scentDuty / 100) * cycleSec).toFixed(1);
 
   return (
     <Panel title="Smell Machine" icon="👃" status={connected ? 'connected' : 'warning'}>
@@ -26,14 +28,38 @@ export function SmellPanel({
       </div>
 
       {scentMode === 'auto' ? (
-        /* Auto mode — show percentages and timing */
+        /* Auto mode — show duty cycle, threshold, and percentages */
         <div>
-          <div style={{ fontSize: 9, color: theme.textDim, marginBottom: 6, letterSpacing: '0.1em', textTransform: 'uppercase' }}>
-            Cycle: {cycleSec}s — motor time by plant %
+          <div style={{ fontSize: 9, color: theme.textDim, marginBottom: 4, letterSpacing: '0.1em', textTransform: 'uppercase' }}>
+            Cycle: {cycleSec}s — active: {activeSec}s ({scentDuty}%)
+          </div>
+
+          {/* Duty cycle bar */}
+          <div style={{
+            height: 6, background: theme.bg, borderRadius: 3, overflow: 'hidden', marginBottom: 6,
+          }}>
+            <div style={{
+              width: `${scentDuty}%`, height: '100%', borderRadius: 3,
+              background: theme.accent, transition: 'width 0.5s',
+            }} />
+          </div>
+
+          {/* Threshold control */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+            <span style={{ fontSize: 9, color: theme.textDim, whiteSpace: 'nowrap' }}>
+              100% at
+            </span>
+            <input type="range" min={1} max={200} value={scentThreshold}
+              onChange={e => setScentThreshold(Number(e.target.value))}
+              style={{ flex: 1, height: 4 }}
+            />
+            <span style={{ fontSize: 10, fontFamily: fonts.mono, color: theme.text, minWidth: 40, textAlign: 'right' }}>
+              {scentThreshold} plants
+            </span>
           </div>
           {SCENT_TYPES.filter(s => s.plant).map(scent => {
             const pct = scentPercentages[scent.plant] || 0;
-            const time = ((pct / 100) * cycleSec).toFixed(1);
+            const time = ((pct / 100) * activeSec).toFixed(1);
             const isActive = activeScent === scent.id;
 
             return (

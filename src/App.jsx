@@ -39,6 +39,8 @@ export default function App() {
   const [activeScent, setActiveScent] = useState('off');
   const [scentMode, setScentMode] = useState('manual'); // 'manual' | 'auto'
   const [scentPercentages, setScentPercentages] = useState({ flowers: 0, evergreen: 0, eucalyptus: 0 });
+  const [scentThreshold, setScentThreshold] = useState(20); // plants needed for 100% scent
+  const [scentDuty, setScentDuty] = useState(0); // 0-100% of cycle active
 
   // ─── AUDIO ──────────────────────────────────────────────
   const [tracks, setTracks] = useState(
@@ -95,6 +97,7 @@ export default function App() {
         if (saved.windIntensity != null) setWindIntensity(saved.windIntensity);
         if (saved.scentMode) setScentMode(saved.scentMode);
         if (saved.activeScent) setActiveScent(saved.activeScent);
+        if (saved.scentThreshold != null) setScentThreshold(saved.scentThreshold);
 
         // Re-load audio buffers from server (decoding works even with suspended context)
         const engine = audioEngineRef.current;
@@ -200,9 +203,10 @@ export default function App() {
         windIntensity,
         scentMode,
         activeScent,
+        scentThreshold,
       }).catch(() => {});
     }, 2000);
-  }, [tracks, trackGroups, masterVolume, windMode, windIntensity, scentMode, activeScent]);
+  }, [tracks, trackGroups, masterVolume, windMode, windIntensity, scentMode, activeScent, scentThreshold]);
 
   // ─── AUDIO ENGINE SYNC ─────────────────────────────────
   useEffect(() => {
@@ -502,8 +506,9 @@ export default function App() {
   };
 
   // ─── SCENT AUTO CYCLE ───────────────────────────────────
-  // Every SCENT_CYCLE_INTERVAL, calculate plant percentages and
-  // run each scent motor for its proportional share of the cycle.
+  // Every SCENT_CYCLE_INTERVAL (10s), run scents proportionally.
+  // Active time scales with total plants: 0 plants = 0s, threshold+ = full cycle.
+  // Within the active time, each scent runs for its share of the plant mix.
   useEffect(() => {
     if (scentMode !== 'auto') return;
 
@@ -518,8 +523,13 @@ export default function App() {
         serial.current.send('stop\n');
         setActiveScent('off');
         setScentPercentages({ flowers: 0, evergreen: 0, eucalyptus: 0 });
+        setScentDuty(0);
         return;
       }
+
+      // Scale active time: 0 plants → 0%, threshold+ → 100%
+      const duty = Math.min(1, total / scentThreshold);
+      setScentDuty(Math.round(duty * 100));
 
       const pct = {
         flowers: sceneData.flowers / total,
@@ -533,11 +543,13 @@ export default function App() {
       });
 
       const interval = CONFIG.SCENT_CYCLE_INTERVAL;
+      const activeTime = interval * duty;
+
       const schedule = [
-        { ...SCENT_TYPES.find(s => s.id === 'flowers'), duration: pct.flowers * interval },
-        { ...SCENT_TYPES.find(s => s.id === 'evergreen'), duration: pct.evergreen * interval },
-        { ...SCENT_TYPES.find(s => s.id === 'eucalyptus'), duration: pct.eucalyptus * interval },
-      ].filter(s => s.duration > 200); // skip if less than 200ms
+        { ...SCENT_TYPES.find(s => s.id === 'flowers'), duration: pct.flowers * activeTime },
+        { ...SCENT_TYPES.find(s => s.id === 'evergreen'), duration: pct.evergreen * activeTime },
+        { ...SCENT_TYPES.find(s => s.id === 'eucalyptus'), duration: pct.eucalyptus * activeTime },
+      ].filter(s => s.duration > 200);
 
       let offset = 0;
       for (const step of schedule) {
@@ -548,6 +560,15 @@ export default function App() {
         scentTimers.current.push(t);
         offset += step.duration;
       }
+
+      // Stop after active time if not running full cycle
+      if (duty < 1) {
+        const stopT = setTimeout(() => {
+          serial.current.send('stop\n');
+          setActiveScent('off');
+        }, activeTime);
+        scentTimers.current.push(stopT);
+      }
     };
 
     cycle();
@@ -557,7 +578,7 @@ export default function App() {
       clearInterval(iv);
       scentTimers.current.forEach(t => clearTimeout(t));
     };
-  }, [scentMode, sceneData]);
+  }, [scentMode, sceneData, scentThreshold]);
 
   // ─── SERIAL CONNECT ─────────────────────────────────────
   const connectSerial = async () => {
@@ -716,6 +737,9 @@ export default function App() {
           scentMode={scentMode}
           setScentMode={setScentMode}
           scentPercentages={scentPercentages}
+          scentThreshold={scentThreshold}
+          setScentThreshold={setScentThreshold}
+          scentDuty={scentDuty}
         />
 
         <StoryPanel
