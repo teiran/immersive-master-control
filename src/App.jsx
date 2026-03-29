@@ -25,7 +25,7 @@ export default function App() {
 
   // ─── SCENE DATA ─────────────────────────────────────────
   const [sceneData, setSceneData] = useState({
-    flowers: 0, evergreen: 0, thirdPlant: 0,
+    flowers: 0, evergreen: 0, eucalyptus: 0,
     dayNightCycle: 0, waterCloseness: 0, cloudiness: 0, rain: 0, onField: false,
   });
   const [godotLog, setGodotLog] = useState([]);
@@ -38,7 +38,7 @@ export default function App() {
   // ─── SMELL ──────────────────────────────────────────────
   const [activeScent, setActiveScent] = useState('off');
   const [scentMode, setScentMode] = useState('manual'); // 'manual' | 'auto'
-  const [scentPercentages, setScentPercentages] = useState({ flowers: 0, evergreen: 0, thirdPlant: 0 });
+  const [scentPercentages, setScentPercentages] = useState({ flowers: 0, evergreen: 0, eucalyptus: 0 });
 
   // ─── AUDIO ──────────────────────────────────────────────
   const [tracks, setTracks] = useState(
@@ -300,7 +300,7 @@ export default function App() {
             lastLogTime.current = now;
             setGodotLog(prev => [...prev.slice(-14), {
               time: new Date().toLocaleTimeString(),
-              data: `#${_seq ?? '?'} F:${scene.flowers} E:${scene.evergreen} T:${scene.thirdPlant}`,
+              data: `#${_seq ?? '?'} F:${scene.flowers} E:${scene.evergreen} U:${scene.eucalyptus}`,
             }]);
           }
         }
@@ -318,7 +318,7 @@ export default function App() {
   // ─── WIND AUTO — derived from scene data ────────────────
   useEffect(() => {
     if (windMode === 'auto') {
-      const total = sceneData.flowers + sceneData.evergreen + sceneData.thirdPlant;
+      const total = sceneData.flowers + sceneData.evergreen + sceneData.eucalyptus;
       setWindAutoValue(Math.min(100, Math.floor((total / 800) * 100)));
     }
   }, [sceneData, windMode]);
@@ -510,30 +510,30 @@ export default function App() {
       clearTimers();
       scentTimers.current = [];
 
-      const total = sceneData.flowers + sceneData.evergreen + sceneData.thirdPlant;
+      const total = sceneData.flowers + sceneData.evergreen + sceneData.eucalyptus;
       if (total === 0) {
         serial.current.send('stop\n');
         setActiveScent('off');
-        setScentPercentages({ flowers: 0, evergreen: 0, thirdPlant: 0 });
+        setScentPercentages({ flowers: 0, evergreen: 0, eucalyptus: 0 });
         return;
       }
 
       const pct = {
         flowers: sceneData.flowers / total,
         evergreen: sceneData.evergreen / total,
-        thirdPlant: sceneData.thirdPlant / total,
+        eucalyptus: sceneData.eucalyptus / total,
       };
       setScentPercentages({
         flowers: Math.round(pct.flowers * 100),
         evergreen: Math.round(pct.evergreen * 100),
-        thirdPlant: Math.round(pct.thirdPlant * 100),
+        eucalyptus: Math.round(pct.eucalyptus * 100),
       });
 
       const interval = CONFIG.SCENT_CYCLE_INTERVAL;
       const schedule = [
         { ...SCENT_TYPES.find(s => s.id === 'flowers'), duration: pct.flowers * interval },
         { ...SCENT_TYPES.find(s => s.id === 'evergreen'), duration: pct.evergreen * interval },
-        { ...SCENT_TYPES.find(s => s.id === 'third'), duration: pct.thirdPlant * interval },
+        { ...SCENT_TYPES.find(s => s.id === 'eucalyptus'), duration: pct.eucalyptus * interval },
       ].filter(s => s.duration > 200); // skip if less than 200ms
 
       let offset = 0;

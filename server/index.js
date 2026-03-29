@@ -36,10 +36,10 @@ app.use('/data/audio', express.static(AUDIO_DIR));
 let sceneSeq = 0; // sequence counter for incoming POSTs
 
 let sceneData = {
-  // Plant counts (3 scent-mapped types + 1 TBD)
+  // Plant counts (3 scent-mapped types)
   flowers: 0,
   evergreen: 0,
-  thirdPlant: 0,          // TBD — third plant type
+  eucalyptus: 0,
 
   // World state from Godot
   dayNightCycle: 0,        // 0.0 (midnight) → 0.5 (noon) → 1.0 (midnight)
@@ -92,7 +92,7 @@ app.post('/api/scene', (req, res) => {
     // Plants
     flowers: req.body.flowers ?? sceneData.flowers,
     evergreen: req.body.evergreen ?? sceneData.evergreen,
-    thirdPlant: req.body.thirdPlant ?? sceneData.thirdPlant,
+    eucalyptus: req.body.eucalyptus ?? sceneData.eucalyptus,
 
     // World state
     dayNightCycle: req.body.dayNightCycle ?? sceneData.dayNightCycle,
@@ -104,7 +104,7 @@ app.post('/api/scene', (req, res) => {
 
   const now = Date.now();
   if (now - lastSceneLog >= 1000) {
-    console.log(`[Scene] #${sceneSeq} F:${sceneData.flowers} E:${sceneData.evergreen} T:${sceneData.thirdPlant}`);
+    console.log(`[Scene] #${sceneSeq} F:${sceneData.flowers} E:${sceneData.evergreen} U:${sceneData.eucalyptus}`);
     lastSceneLog = now;
   }
 
