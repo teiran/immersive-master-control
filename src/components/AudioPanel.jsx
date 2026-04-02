@@ -363,6 +363,7 @@ export function AudioPanel({
             <TrackGroupRow
               key={group.id}
               group={group}
+              activeSubId={groupController?.getActiveSubTrackId(group.id)}
               isEditing={editingId === group.id}
               onEdit={() => setEditingId(editingId === group.id ? null : group.id)}
               onUpdate={(updates) => updateGroup(group.id, updates)}
@@ -874,7 +875,7 @@ function TriggerButton({
 // ─── TRACK GROUP ROW ─────────────────────────────────────────
 
 function TrackGroupRow({
-  group, isEditing,
+  group, activeSubId, isEditing,
   onEdit, onUpdate, onPlayStop, onAdvance, onTrigger,
   onAddSubTrack, onRemoveSubTrack, onSubFilePicker, onSubDrop, onUpdateSubTrack,
   onRemove, dragOverId, setDragOverId,
@@ -945,6 +946,14 @@ function TrackGroupRow({
           <span style={{ fontSize: 8, color: theme.textDim, marginLeft: 4 }}>
             ({group.subTracks.length} tracks)
           </span>
+          {group.playing && group.subTracks.length > 0 && (() => {
+            const activeSub = group.subTracks.find(s => s.id === activeSubId);
+            return activeSub ? (
+              <span style={{ fontSize: 8, color: group.color, marginLeft: 6 }}>
+                — #{group.subTracks.indexOf(activeSub) + 1} {activeSub.label}
+              </span>
+            ) : null;
+          })()}
         </span>
 
         <div style={{ width: 120 }}>
@@ -1009,21 +1018,38 @@ function TrackGroupRow({
           </div>
 
           {/* Sub-tracks */}
-          {group.subTracks.map((sub, idx) => (
+          {group.subTracks.map((sub, idx) => {
+            const isActive = group.playing && activeSubId === sub.id;
+            return (
             <div key={sub.id}
               onDrop={(e) => onSubDrop(sub.id, e)}
               onDragOver={(e) => { e.preventDefault(); setDragOverId(sub.id); }}
               onDragLeave={() => setDragOverId(null)}
               style={{
-                display: 'flex', alignItems: 'center', gap: 6, padding: '3px 4px',
-                borderRadius: 3,
-                background: dragOverId === sub.id ? group.color + '22' : 'transparent',
+                display: 'flex', alignItems: 'center', gap: 6, padding: '4px 6px',
+                borderRadius: 4,
+                background: isActive ? group.color + '18'
+                  : dragOverId === sub.id ? group.color + '22' : 'transparent',
+                border: isActive ? `1px solid ${group.color}66` : '1px solid transparent',
                 outline: dragOverId === sub.id ? `1px dashed ${group.color}` : 'none',
+                transition: 'all 0.3s',
               }}
             >
-              <span style={{ fontSize: 9, color: theme.textDim, minWidth: 16 }}>#{idx + 1}</span>
-              <div style={{ minWidth: 80 }}>
-                <span style={{ fontSize: 10, color: theme.text, display: 'block' }}>{sub.label}</span>
+              <span style={{
+                fontSize: 9, minWidth: 18, fontFamily: fonts.mono,
+                color: isActive ? group.color : theme.textDim,
+                fontWeight: isActive ? 700 : 400,
+              }}>#{idx + 1}</span>
+              {isActive && <span style={{
+                width: 6, height: 6, borderRadius: '50%', background: group.color,
+                boxShadow: `0 0 6px ${group.color}88`, flexShrink: 0,
+              }} />}
+              <div style={{ minWidth: 80, flex: 1 }}>
+                <span style={{
+                  fontSize: 10, display: 'block',
+                  color: isActive ? group.color : theme.text,
+                  fontWeight: isActive ? 600 : 400,
+                }}>{sub.label}</span>
                 {sub.loaded ? (
                   <span style={{ fontSize: 8, color: theme.textDim }}>{sub.fileName}</span>
                 ) : (
@@ -1050,7 +1076,8 @@ function TrackGroupRow({
                 cursor: 'pointer', fontSize: 12, padding: '0 4px',
               }}>×</button>
             </div>
-          ))}
+            );
+          })}
 
           {/* Custom sequence editor */}
           {group.playMode === 'custom' && (
@@ -1059,18 +1086,25 @@ function TrackGroupRow({
                 Play order (click to add, click badge to remove):
               </span>
               <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center' }}>
-                {(group.customSequence || []).map((subIdx, seqPos) => (
+                {(group.customSequence || []).map((subIdx, seqPos) => {
+                  const isCurrent = group.playing && seqPos === (group.currentIndex ?? -1);
+                  return (
                   <button key={seqPos}
                     onClick={() => onUpdate({
                       customSequence: group.customSequence.filter((_, i) => i !== seqPos),
                     })}
                     style={{
-                      background: group.color + '22', border: `1px solid ${group.color}44`,
-                      color: group.color, padding: '2px 6px', borderRadius: 3,
+                      background: isCurrent ? group.color + '55' : group.color + '22',
+                      border: `1px solid ${isCurrent ? group.color : group.color + '44'}`,
+                      color: isCurrent ? theme.text : group.color,
+                      padding: '2px 6px', borderRadius: 3,
                       fontFamily: fonts.mono, fontSize: 9, cursor: 'pointer',
+                      fontWeight: isCurrent ? 700 : 400,
+                      boxShadow: isCurrent ? `0 0 6px ${group.color}66` : 'none',
                     }}
                   >#{subIdx + 1}</button>
-                ))}
+                  );
+                })}
                 <span style={{ color: theme.textDim, fontSize: 9 }}>+</span>
                 {group.subTracks.map((_, idx) => (
                   <button key={idx}
