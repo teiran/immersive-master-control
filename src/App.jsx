@@ -278,6 +278,35 @@ export default function App() {
     }));
   }, [sceneData]);
 
+  // ─── AUTO-START BIRD GROUP WHEN TREES EXIST ─────────────
+  // When total plant count >= 1, start any group named "linnut" (case-insensitive).
+  // When total drops to 0, stop it.
+  const birdAutoRef = useRef(false); // tracks whether we auto-started
+  useEffect(() => {
+    const total = sceneData.flowers + sceneData.evergreen + (sceneData.eucalyptus || 0);
+    const controller = groupControllerRef.current;
+
+    for (const group of trackGroupsRef.current) {
+      if (!group.label.toLowerCase().includes('linnu')) continue;
+
+      if (total >= 1 && !group.playing && !birdAutoRef.current) {
+        // Start the bird group
+        controller.startGroup(group);
+        setTrackGroups(prev => prev.map(g =>
+          g.id === group.id ? { ...g, playing: true } : g
+        ));
+        birdAutoRef.current = true;
+      } else if (total === 0 && group.playing && birdAutoRef.current) {
+        // Stop the bird group
+        controller.stopGroup(group);
+        setTrackGroups(prev => prev.map(g =>
+          g.id === group.id ? { ...g, playing: false } : g
+        ));
+        birdAutoRef.current = false;
+      }
+    }
+  }, [sceneData]);
+
   // ─── WEBSOCKET — RECEIVE SCENE DATA FROM SERVER ─────────
   // Scene data updates on every Godot POST (up to 10/s).
   // Log is throttled to ~2/s to stay readable.
