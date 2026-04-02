@@ -74,7 +74,7 @@ export class AudioEngine {
   }
 
   // Load a layer from a dropped File object
-  async addLayerFromFile(id, file, { loop = true, volume = 0.5 } = {}) {
+  async addLayerFromFile(id, file, { loop = true, volume = 0.5, autoPlay = true } = {}) {
     await this.init();
 
     const arrayBuffer = await file.arrayBuffer();
@@ -92,13 +92,13 @@ export class AudioEngine {
     gainNode.gain.value = prevMuted ? 0 : prevVolume;
 
     if (loop) {
-      // Looping layer — add and auto-play
+      // Looping layer — add and optionally auto-play
       this.layers.set(id, {
         buffer, gainNode, source: null, loop: true,
         playing: false, volume: prevVolume, muted: prevMuted,
         fileName: file.name,
       });
-      this.playLayer(id);
+      if (autoPlay) this.playLayer(id);
     } else {
       // One-shot trigger — store as SFX buffer
       this.sfxBuffers.set(id, buffer);

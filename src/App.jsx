@@ -568,11 +568,13 @@ export default function App() {
 
       const activeTime = scentCycleMs * duty;
 
+      const MIN_SCENT_MS = 200;
       const schedule = [
         { ...SCENT_TYPES.find(s => s.id === 'flowers'), duration: pct.flowers * activeTime },
         { ...SCENT_TYPES.find(s => s.id === 'evergreen'), duration: pct.evergreen * activeTime },
         { ...SCENT_TYPES.find(s => s.id === 'eucalyptus'), duration: pct.eucalyptus * activeTime },
-      ].filter(s => s.duration > 200);
+      ].filter(s => s.duration > 0)
+       .map(s => ({ ...s, duration: Math.max(s.duration, MIN_SCENT_MS) }));
 
       let offset = 0;
       for (const step of schedule) {

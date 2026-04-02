@@ -193,7 +193,7 @@ export function AudioPanel({
     if (audioEngine) {
       await audioEngine.resume();
       await audioEngine.addLayerFromFile(subId, file, {
-        loop: group?.type === 'loop', volume: 0.5,
+        loop: group?.type === 'loop', volume: 0.5, autoPlay: false,
       });
     }
     let serverPath = null;
