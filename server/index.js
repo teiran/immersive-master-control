@@ -96,8 +96,8 @@ app.post('/api/scene', (req, res) => {
   sceneSeq++;
   sceneData = {
     flowers: req.body.flowers ?? sceneData.flowers,
-    evergreen: req.body.evergreens ?? sceneData.evergreen,
-    eucalyptus: sceneData.eucalyptus,
+    evergreen: req.body.evergreen ?? req.body.evergreens ?? sceneData.evergreen,
+    eucalyptus: req.body.eucalyptus ?? req.body.thirdPlant ?? req.body.Eukalyptus ?? req.body.eukalyptus ?? sceneData.eucalyptus,
     dayNightCycle: req.body.dayNightCycle ?? sceneData.dayNightCycle,
     waterCloseness: req.body.waterCloseness ?? sceneData.waterCloseness,
     cloudiness: req.body.cloudiness ?? sceneData.cloudiness,
