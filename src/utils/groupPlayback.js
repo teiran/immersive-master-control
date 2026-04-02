@@ -17,9 +17,8 @@ export class GroupPlaybackController {
 
   // Get the next sub-track index based on play mode
   getNextIndex(group) {
-    const len = group.playMode === 'custom'
-      ? group.customSequence.length
-      : group.subTracks.length;
+    const seq = group.customSequence || [];
+    const len = group.playMode === 'custom' ? seq.length : group.subTracks.length;
 
     if (len === 0) return 0;
 
@@ -29,7 +28,7 @@ export class GroupPlaybackController {
       case 'sequential':
         return ((group.currentIndex ?? -1) + 1) % group.subTracks.length;
       case 'custom':
-        return ((group.currentIndex ?? -1) + 1) % group.customSequence.length;
+        return ((group.currentIndex ?? -1) + 1) % seq.length;
       default:
         return 0;
     }
@@ -38,7 +37,8 @@ export class GroupPlaybackController {
   // Resolve which sub-track to play at a given index
   resolveSubTrack(group, index) {
     if (group.playMode === 'custom') {
-      const subIdx = group.customSequence[index];
+      const seq = group.customSequence || [];
+      const subIdx = seq[index];
       return group.subTracks[subIdx] ?? group.subTracks[0];
     }
     return group.subTracks[index] ?? group.subTracks[0];
@@ -55,8 +55,7 @@ export class GroupPlaybackController {
     return group.autoAdvanceInterval ?? 10000;
   }
 
-  // Schedule the next auto-advance using the group object directly
-  // (don't read from ref here — React state may not have updated yet)
+  // Schedule the next auto-advance
   scheduleAutoAdvance(group) {
     this.clearAutoTimer(group.id);
     if (!group.autoAdvance) return;
@@ -65,9 +64,13 @@ export class GroupPlaybackController {
     if (delay == null) return;
 
     this.autoTimers[group.id] = setTimeout(() => {
-      const latest = this.getLatestGroup?.(group.id);
-      if (!latest || !latest.playing || !latest.autoAdvance) return;
-      this.advanceGroup(latest);
+      try {
+        const latest = this.getLatestGroup?.(group.id);
+        if (!latest || !latest.playing || !latest.autoAdvance) return;
+        this.advanceGroup(latest);
+      } catch (err) {
+        console.error('[Group] Auto-advance error:', err);
+      }
     }, delay);
   }
 
@@ -124,8 +127,9 @@ export class GroupPlaybackController {
       this.onGroupUpdate(group.id, { currentIndex: nextIdx });
     }
 
-    // Reschedule auto-advance
-    this.scheduleAutoAdvance(group);
+    // Reschedule — read fresh state for the next timer
+    const latest = this.getLatestGroup?.(group.id);
+    this.scheduleAutoAdvance(latest || group);
   }
 
   // Stop a group
