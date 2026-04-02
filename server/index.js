@@ -17,6 +17,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = join(__dirname, '..', 'data');
 const AUDIO_DIR = join(DATA_DIR, 'audio');
 const STATE_FILE = join(DATA_DIR, 'state.json');
+const DEFAULT_STATE_FILE = join(DATA_DIR, 'default-state.json');
 
 // Ensure data directories exist
 mkdirSync(AUDIO_DIR, { recursive: true });
@@ -297,8 +298,10 @@ app.post('/api/state', (req, res) => {
 // Load saved state
 app.get('/api/state', (req, res) => {
   try {
-    if (existsSync(STATE_FILE)) {
-      const state = JSON.parse(readFileSync(STATE_FILE, 'utf-8'));
+    const file = existsSync(STATE_FILE) ? STATE_FILE
+      : existsSync(DEFAULT_STATE_FILE) ? DEFAULT_STATE_FILE : null;
+    if (file) {
+      const state = JSON.parse(readFileSync(file, 'utf-8'));
       res.json(state);
     } else {
       res.json(null);
