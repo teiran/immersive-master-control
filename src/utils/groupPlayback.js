@@ -58,15 +58,26 @@ export class GroupPlaybackController {
   // Schedule the next auto-advance
   scheduleAutoAdvance(group) {
     this.clearAutoTimer(group.id);
-    if (!group.autoAdvance) return;
+    console.log('[Group] scheduleAutoAdvance called', {
+      id: group.id, autoAdvance: group.autoAdvance, playing: group.playing,
+    });
+    if (!group.autoAdvance) { console.log('[Group] skipped — autoAdvance is false'); return; }
 
     const delay = this.getAutoDelay(group);
-    if (delay == null) return;
+    if (delay == null) { console.log('[Group] skipped — delay is null'); return; }
 
+    console.log(`[Group] ✓ Timer set: ${delay}ms`);
     this.autoTimers[group.id] = setTimeout(() => {
       try {
         const latest = this.getLatestGroup?.(group.id);
-        if (!latest || !latest.playing || !latest.autoAdvance) return;
+        console.log('[Group] Timer fired!', latest ? {
+          playing: latest.playing, autoAdvance: latest.autoAdvance,
+          currentIndex: latest.currentIndex, subTracks: latest.subTracks.length,
+        } : 'latest is null');
+        if (!latest) { console.log('[Group] ABORT — no latest group'); return; }
+        if (!latest.playing) { console.log('[Group] ABORT — not playing'); return; }
+        if (!latest.autoAdvance) { console.log('[Group] ABORT — autoAdvance off'); return; }
+        console.log('[Group] → advanceGroup');
         this.advanceGroup(latest);
       } catch (err) {
         console.error('[Group] Auto-advance error:', err);
