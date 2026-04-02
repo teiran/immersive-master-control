@@ -237,6 +237,33 @@
       "sceneTrigger": "evergreen",
       "triggerKey": null,
       "sceneLink": null
+    },
+    {
+      "id": "group_1775161754417",
+      "label": "bees",
+      "type": "loop",
+      "playMode": "random",
+      "color": "#9e5a5a",
+      "customSequence": [],
+      "currentIndex": 0,
+      "triggerKey": null,
+      "sceneLink": null,
+      "volume": 80,
+      "muted": false,
+      "playing": true,
+      "speed": 100,
+      "subTracks": [
+        {
+          "id": "sub_1775161757590",
+          "label": "Track 1",
+          "fileName": "freesound_community-bees-swarming-98657 (1).mp3",
+          "serverPath": "/data/audio/freesound_community-bees-swarming-98657__1__1775161761946.mp3",
+          "loaded": true,
+          "volume": 10,
+          "speed": 100
+        }
+      ],
+      "sceneTrigger": "flowers"
     }
   ],
   "masterVolume": 80,
@@ -244,7 +271,7 @@
   "windIntensity": 74,
   "windSendInterval": 2300,
   "scentMode": "auto",
-  "activeScent": "off",
+  "activeScent": "evergreen",
   "scentThreshold": 177,
   "scentCycleMs": 4000
 }
