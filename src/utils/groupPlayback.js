@@ -82,13 +82,13 @@ export class GroupPlaybackController {
     }
   }
 
-  // Play a sub-track in the group
+  // Play a sub-track in the group — plays once, doesn't loop
   playSub(group, sub) {
     const vol = (group.volume / 100) * (sub.volume / 100);
     this.engine.setLayerVolume(sub.id, group.muted ? 0 : vol);
     this.engine.setLayerSpeed(sub.id, (sub.speed ?? 100) / 100);
     this.activeSubTrack[group.id] = sub.id;
-    this.engine.playLayer(sub.id);
+    this.engine.playLayerOnce(sub.id);
   }
 
   // Start a loop group — plays the current sub-track (doesn't advance).
