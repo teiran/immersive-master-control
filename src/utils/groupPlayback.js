@@ -82,19 +82,13 @@ export class GroupPlaybackController {
     }
   }
 
-  // Play a sub-track once, then schedule auto-advance after it ends
+  // Play a sub-track once (no loop). Timer is started by caller.
   playSub(group, sub) {
     const vol = (group.volume / 100) * (sub.volume / 100);
     this.engine.setLayerVolume(sub.id, group.muted ? 0 : vol);
     this.engine.setLayerSpeed(sub.id, (sub.speed ?? 100) / 100);
     this.activeSubTrack[group.id] = sub.id;
-    this.engine.playLayerOnce(sub.id, () => {
-      // Track finished — now start the wait timer
-      const latest = this.getLatestGroup?.(group.id);
-      if (latest?.playing) {
-        this.scheduleAutoAdvance(latest);
-      }
-    });
+    this.engine.playLayerOnce(sub.id);
   }
 
   // Start a loop group — plays the current sub-track (doesn't advance).
@@ -112,7 +106,9 @@ export class GroupPlaybackController {
     if (this.onGroupUpdate) {
       this.onGroupUpdate(group.id, { currentIndex: idx });
     }
-    // Timer is started by playSub's onEnded callback, not here
+
+    // Start timer — when it fires, stop this track and play next
+    this.scheduleAutoAdvance(group);
   }
 
   // Advance to next sub-track (manual or auto)
@@ -123,6 +119,7 @@ export class GroupPlaybackController {
     const sub = this.resolveSubTrack(group, nextIdx);
     if (!sub?.loaded) return;
 
+    // Stop current track
     const activeId = this.activeSubTrack[group.id];
     if (activeId) this.engine.stopLayer(activeId);
 
@@ -131,7 +128,10 @@ export class GroupPlaybackController {
     if (this.onGroupUpdate) {
       this.onGroupUpdate(group.id, { currentIndex: nextIdx });
     }
-    // Timer is started by playSub's onEnded callback, not here
+
+    // Restart timer for the next advance
+    const latest = this.getLatestGroup?.(group.id);
+    this.scheduleAutoAdvance(latest || group);
   }
 
   // Stop a group
