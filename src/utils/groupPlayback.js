@@ -18,11 +18,12 @@ export class GroupPlaybackController {
   // Get the next sub-track index based on play mode
   getNextIndex(group) {
     const seq = group.customSequence || [];
-    const len = group.playMode === 'custom' ? seq.length : group.subTracks.length;
+    // Fall back to sequential if custom sequence is empty
+    const useCustom = group.playMode === 'custom' && seq.length > 0;
 
-    if (len === 0) return 0;
+    if (group.subTracks.length === 0) return 0;
 
-    switch (group.playMode) {
+    switch (useCustom ? 'custom' : (group.playMode === 'custom' ? 'sequential' : group.playMode)) {
       case 'random':
         return Math.floor(Math.random() * group.subTracks.length);
       case 'sequential':
@@ -30,14 +31,14 @@ export class GroupPlaybackController {
       case 'custom':
         return ((group.currentIndex ?? -1) + 1) % seq.length;
       default:
-        return 0;
+        return ((group.currentIndex ?? -1) + 1) % group.subTracks.length;
     }
   }
 
   // Resolve which sub-track to play at a given index
   resolveSubTrack(group, index) {
-    if (group.playMode === 'custom') {
-      const seq = group.customSequence || [];
+    const seq = group.customSequence || [];
+    if (group.playMode === 'custom' && seq.length > 0) {
       const subIdx = seq[index];
       return group.subTracks[subIdx] ?? group.subTracks[0];
     }
@@ -58,26 +59,15 @@ export class GroupPlaybackController {
   // Schedule the next auto-advance
   scheduleAutoAdvance(group) {
     this.clearAutoTimer(group.id);
-    console.log('[Group] scheduleAutoAdvance called', {
-      id: group.id, autoAdvance: group.autoAdvance, playing: group.playing,
-    });
-    if (!group.autoAdvance) { console.log('[Group] skipped — autoAdvance is false'); return; }
+    if (!group.autoAdvance) return;
 
     const delay = this.getAutoDelay(group);
-    if (delay == null) { console.log('[Group] skipped — delay is null'); return; }
+    if (delay == null) return;
 
-    console.log(`[Group] ✓ Timer set: ${delay}ms`);
     this.autoTimers[group.id] = setTimeout(() => {
       try {
         const latest = this.getLatestGroup?.(group.id);
-        console.log('[Group] Timer fired!', latest ? {
-          playing: latest.playing, autoAdvance: latest.autoAdvance,
-          currentIndex: latest.currentIndex, subTracks: latest.subTracks.length,
-        } : 'latest is null');
-        if (!latest) { console.log('[Group] ABORT — no latest group'); return; }
-        if (!latest.playing) { console.log('[Group] ABORT — not playing'); return; }
-        if (!latest.autoAdvance) { console.log('[Group] ABORT — autoAdvance off'); return; }
-        console.log('[Group] → advanceGroup');
+        if (!latest || !latest.playing || !latest.autoAdvance) return;
         this.advanceGroup(latest);
       } catch (err) {
         console.error('[Group] Auto-advance error:', err);
