@@ -278,31 +278,43 @@ export default function App() {
     }));
   }, [sceneData]);
 
-  // ─── AUTO-START BIRD GROUP WHEN TREES EXIST ─────────────
-  // When total plant count >= 1, start any group named "linnut" (case-insensitive).
-  // When total drops to 0, stop it.
-  const birdAutoRef = useRef(false); // tracks whether we auto-started
+  // ─── GROUP SCENE TRIGGERS ────────────────────────────────
+  // When a group has a sceneTrigger set, play next track on value change
+  const prevSceneTriggerVals = useRef({});
   useEffect(() => {
-    const total = sceneData.flowers + sceneData.evergreen + (sceneData.eucalyptus || 0);
+    const sd = sceneDataRef.current;
+    const total = sd.flowers + sd.evergreen + (sd.eucalyptus || 0);
     const controller = groupControllerRef.current;
 
     for (const group of trackGroupsRef.current) {
-      if (!group.label.toLowerCase().includes('linnu')) continue;
+      if (!group.sceneTrigger) continue;
 
-      if (total >= 1 && !group.playing && !birdAutoRef.current) {
-        // Start the bird group
-        controller.startGroup(group);
-        setTrackGroups(prev => prev.map(g =>
-          g.id === group.id ? { ...g, playing: true } : g
-        ));
-        birdAutoRef.current = true;
-      } else if (total === 0 && group.playing && birdAutoRef.current) {
-        // Stop the bird group
-        controller.stopGroup(group);
-        setTrackGroups(prev => prev.map(g =>
-          g.id === group.id ? { ...g, playing: false } : g
-        ));
-        birdAutoRef.current = false;
+      // Compute current trigger value
+      let val;
+      if (group.sceneTrigger === 'totalPlants') {
+        val = total;
+      } else {
+        val = sd[group.sceneTrigger];
+      }
+
+      const prev = prevSceneTriggerVals.current[group.id];
+      if (prev === undefined) {
+        // First time — just store, don't trigger
+        prevSceneTriggerVals.current[group.id] = val;
+        continue;
+      }
+
+      if (val !== prev) {
+        prevSceneTriggerVals.current[group.id] = val;
+        if (val > 0 || (typeof val === 'boolean' && val)) {
+          // Value changed and is non-zero — play next track
+          if (!group.playing) {
+            controller.startGroup(group);
+            setTrackGroups(p => p.map(g => g.id === group.id ? { ...g, playing: true } : g));
+          } else {
+            controller.advanceGroup(group);
+          }
+        }
       }
     }
   }, [sceneData]);

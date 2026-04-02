@@ -1177,6 +1177,29 @@ function TrackGroupRow({
                   ))}
                 </select>
               </div>
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                <span style={{ fontSize: 9, color: theme.textDim, minWidth: 50 }}>Trigger:</span>
+                <select value={group.sceneTrigger || ''}
+                  onChange={e => onUpdate({ sceneTrigger: e.target.value || null })}
+                  style={{ flex: 1, background: theme.bg, border: `1px solid ${theme.panelBorder}`,
+                    color: theme.text, padding: '3px 6px', borderRadius: 3,
+                    fontFamily: fonts.mono, fontSize: 10 }}>
+                  <option value="">None</option>
+                  <option value="totalPlants">Total plants change</option>
+                  <option value="flowers">Flowers change</option>
+                  <option value="evergreen">Evergreen change</option>
+                  <option value="eucalyptus">Eucalyptus change</option>
+                  <option value="dayNightCycle">Day/Night change</option>
+                  <option value="waterCloseness">Water closeness change</option>
+                  <option value="rain">Rain change</option>
+                  <option value="onField">On field change</option>
+                </select>
+              </div>
+              {group.sceneTrigger && (
+                <div style={{ fontSize: 8, color: theme.textDim, marginLeft: 56 }}>
+                  Plays next track when value changes
+                </div>
+              )}
             </div>
           )}
         </div>
