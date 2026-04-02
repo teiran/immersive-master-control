@@ -59,17 +59,13 @@ export class GroupPlaybackController {
   // (don't read from ref here — React state may not have updated yet)
   scheduleAutoAdvance(group) {
     this.clearAutoTimer(group.id);
-    console.log(`[Group] scheduleAutoAdvance: autoAdvance=${group.autoAdvance}, delay will be`, this.getAutoDelay(group));
     if (!group.autoAdvance) return;
 
     const delay = this.getAutoDelay(group);
     if (delay == null) return;
 
-    console.log(`[Group] Timer set: ${delay}ms for "${group.label}"`);
     this.autoTimers[group.id] = setTimeout(() => {
-      // Read latest state inside the timeout — by now React has updated
       const latest = this.getLatestGroup?.(group.id);
-      console.log(`[Group] Timer fired for "${group.id}": latest=`, latest ? { playing: latest.playing, autoAdvance: latest.autoAdvance } : 'null');
       if (!latest || !latest.playing || !latest.autoAdvance) return;
       this.advanceGroup(latest);
     }, delay);
@@ -91,19 +87,20 @@ export class GroupPlaybackController {
     this.engine.playLayer(sub.id);
   }
 
-  // Start a loop group — plays the current sub-track on loop.
+  // Start a loop group — plays the current sub-track (doesn't advance).
   startGroup(group) {
     if (!group.subTracks.length) return;
 
-    const nextIdx = this.getNextIndex(group);
-    const sub = this.resolveSubTrack(group, nextIdx);
+    // Play current track, or first if none set
+    const idx = group.currentIndex ?? 0;
+    const sub = this.resolveSubTrack(group, idx);
     if (!sub?.loaded) return;
 
     this.stopGroup(group);
     this.playSub(group, sub);
 
     if (this.onGroupUpdate) {
-      this.onGroupUpdate(group.id, { currentIndex: nextIdx });
+      this.onGroupUpdate(group.id, { currentIndex: idx });
     }
 
     // Start auto-advance timer if enabled
