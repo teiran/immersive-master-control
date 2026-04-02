@@ -264,6 +264,34 @@
         }
       ],
       "sceneTrigger": "flowers"
+    },
+    {
+      "id": "group_1775162989559",
+      "label": "eukalytos",
+      "type": "loop",
+      "playMode": "sequential",
+      "color": "#6b8e4e",
+      "customSequence": [],
+      "currentIndex": 0,
+      "triggerKey": null,
+      "sceneLink": null,
+      "volume": 80,
+      "muted": false,
+      "playing": true,
+      "speed": 100,
+      "subTracks": [
+        {
+          "id": "sub_1775162992429",
+          "label": "Track 1",
+          "fileName": "koala[1].wav",
+          "serverPath": "/data/audio/koala_1__1775162996384.wav",
+          "loaded": true,
+          "volume": 30,
+          "speed": 100
+        }
+      ],
+      "sceneTrigger": "eucalyptus",
+      "autoAdvance": false
     }
   ],
   "masterVolume": 80,
@@ -271,7 +299,7 @@
   "windIntensity": 74,
   "windSendInterval": 2300,
   "scentMode": "auto",
-  "activeScent": "evergreen",
+  "activeScent": "eucalyptus",
   "scentThreshold": 177,
   "scentCycleMs": 4000
 }
