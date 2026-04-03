@@ -21,7 +21,6 @@ export default function App() {
   // ─── CONNECTION STATE ───────────────────────────────────
   const [godotConnected, setGodotConnected] = useState(false);
   const [serialConnected, setSerialConnected] = useState(false);
-  const [rpiConnected, setRpiConnected] = useState(false);
 
   // ─── SCENE DATA ─────────────────────────────────────────
   const [sceneData, setSceneData] = useState({
@@ -391,6 +390,7 @@ export default function App() {
         if (msg.type === 'wind') {
           setWindAutoValue(msg.data.speed);
           if (msg.data.mode) setWindMode(msg.data.mode);
+          serial.current.send(`fan ${Math.round(msg.data.speed)}`);
           setWindLog(prev => [...prev.slice(-7), {
             time: new Date().toLocaleTimeString(),
             speed: msg.data.speed,
@@ -410,15 +410,13 @@ export default function App() {
   // ─── WIND MODE SWITCH ────────────────────────────────────
   const handleWindModeChange = (mode) => {
     setWindMode(mode);
-    api.setWindMode(mode, windSendInterval).catch(() => {});
   };
 
   const handleWindIntervalChange = (ms) => {
     setWindSendInterval(ms);
-    api.setWindMode(null, ms).catch(() => {});
   };
 
-  // ─── WIND MANUAL → RPI ─────────────────────────────────
+  // ─── WIND MANUAL → SERIAL ────────────────────────────────
   // Only send from UI when in manual mode, resend at configurable interval
   const windValRef = useRef(windIntensity);
   useEffect(() => { windValRef.current = windIntensity; }, [windIntensity]);
@@ -426,15 +424,11 @@ export default function App() {
   useEffect(() => {
     if (windMode !== 'manual') return;
     function sendWind() {
-      api.sendWindCommand(windValRef.current, 'manual')
-        .then(() => {
-          setRpiConnected(true);
-          setWindLog(prev => [...prev.slice(-7), {
-            time: new Date().toLocaleTimeString(),
-            speed: windValRef.current,
-          }]);
-        })
-        .catch(() => setRpiConnected(false));
+      serial.current.send(`fan ${Math.round(windValRef.current)}`);
+      setWindLog(prev => [...prev.slice(-7), {
+        time: new Date().toLocaleTimeString(),
+        speed: windValRef.current,
+      }]);
     }
     sendWind();
     const id = setInterval(sendWind, windSendInterval);
@@ -771,7 +765,6 @@ export default function App() {
           {[
             { label: 'Godot', ok: godotConnected },
             { label: 'Arduino', ok: serialConnected },
-            { label: 'RPi', ok: rpiConnected },
           ].map(s => (
             <div key={s.label} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <div style={{
@@ -817,7 +810,7 @@ export default function App() {
 
         {/* Right column */}
         <WindPanel
-          connected={rpiConnected}
+          connected={serialConnected}
           windMode={windMode}
           setWindMode={handleWindModeChange}
           windIntensity={windIntensity}
