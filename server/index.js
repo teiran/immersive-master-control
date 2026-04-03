@@ -114,7 +114,7 @@ app.post('/api/scene', (req, res) => {
 
   const now = Date.now();
   if (now - lastSceneLog >= 1000) {
-    console.log(`[Scene] #${sceneSeq} F:${sceneData.flowers} E:${sceneData.evergreen} W:${req.body.wind ?? '-'}`);
+    console.log(`[Scene] #${sceneSeq}`, JSON.stringify(req.body));
     lastSceneLog = now;
   }
 
