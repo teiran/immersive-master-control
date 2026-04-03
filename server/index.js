@@ -49,6 +49,7 @@ let sceneData = {
   rain: 0,                 // 0–100 intensity
   onField: false,          // true when player is on open field (kahina source)
   speed: 0,                // camera movement speed
+  altitude: 0,             // altitude — controls pitch of all sounds
 };
 
 // Environment state controlled by master (sent back to Godot)
@@ -104,6 +105,7 @@ app.post('/api/scene', (req, res) => {
     rain: req.body.rain ?? sceneData.rain,
     onField: req.body.onField ?? sceneData.onField,
     speed: req.body.speed ?? sceneData.speed,
+    altitude: req.body.altitude ?? sceneData.altitude,
   };
 
   // Store latest wind from Godot, timer handles sending to RPi

@@ -110,6 +110,7 @@ export const SCENE_LINK_OPTIONS = [
   { value: "cloudiness", label: "Cloudiness" },
   { value: "dayNightCycle", label: "Day/Night cycle" },
   { value: "onField", label: "On field" },
+  { value: "altitude", label: "Altitude" },
 ];
 
 // ─── TRACK COLORS FOR NEW TRACKS ────────────────────────────

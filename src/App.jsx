@@ -278,6 +278,23 @@ export default function App() {
     }));
   }, [sceneData]);
 
+  // ─── ALTITUDE → PITCH FOR ALL SOUNDS ───────────────────
+  // altitude 0 = normal pitch (1.0), higher = higher pitch
+  // Maps altitude 0–10 → playbackRate 0.8–1.5
+  useEffect(() => {
+    const engine = audioEngineRef.current;
+    if (!engine?.initialized) return;
+
+    const alt = sceneData.altitude ?? 0;
+    const rate = 0.8 + (alt / 10) * 0.7; // 0→0.8, 5→1.15, 10→1.5
+    const clamped = Math.max(0.5, Math.min(2.0, rate));
+
+    // Apply to all layers
+    for (const [id] of engine.layers) {
+      engine.setLayerSpeed(id, clamped);
+    }
+  }, [sceneData.altitude]);
+
   // ─── GROUP SCENE TRIGGERS ────────────────────────────────
   // When a group has a sceneTrigger set, play next track on value change
   const prevSceneTriggerVals = useRef({});
