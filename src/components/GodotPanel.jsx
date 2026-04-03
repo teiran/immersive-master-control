@@ -11,7 +11,7 @@ const PLANT_TYPES = [
 export function GodotPanel({ connected, sceneData, godotLog, pitchMin, setPitchMin, pitchMax, setPitchMax }) {
   const total = (sceneData.flowers || 0) + (sceneData.evergreen || 0) + (sceneData.eucalyptus || 0);
   const alt = sceneData.altitude ?? 0;
-  const currentPitch = pitchMin + (alt / 1000) * (pitchMax - pitchMin);
+  const currentPitch = pitchMin + (alt / 400) * (pitchMax - pitchMin);
 
   return (
     <Panel title="Godot Scene" icon="🌿" status={connected ? 'connected' : 'error'}>
@@ -52,7 +52,7 @@ export function GodotPanel({ connected, sceneData, godotLog, pitchMin, setPitchM
           height: 4, background: theme.panelBorder, borderRadius: 2, overflow: 'hidden', marginBottom: 6,
         }}>
           <div style={{
-            width: `${(alt / 1000) * 100}%`, height: '100%', borderRadius: 2,
+            width: `${Math.min(100, (alt / 400) * 100)}%`, height: '100%', borderRadius: 2,
             background: theme.accent, transition: 'width 0.3s',
           }} />
         </div>

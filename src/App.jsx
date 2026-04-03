@@ -294,7 +294,7 @@ export default function App() {
     if (!engine?.initialized) return;
 
     const alt = sceneData.altitude ?? 0;
-    const pitch = pitchMin + (alt / 1000) * (pitchMax - pitchMin);
+    const pitch = pitchMin + (alt / 400) * (pitchMax - pitchMin);
     const clamped = Math.max(0.1, Math.min(4.0, pitch));
 
     engine.setMasterPitch(clamped);
