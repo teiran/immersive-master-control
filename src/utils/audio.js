@@ -9,6 +9,7 @@ export class AudioEngine {
     this.layers = new Map();   // id → { source, gainNode, buffer, playing }
     this.sfxBuffers = new Map();
     this.initialized = false;
+    this.masterPitch = 1.0;    // multiplied with per-layer speed
   }
 
   async init() {
@@ -131,7 +132,7 @@ export class AudioEngine {
 
     const source = this.ctx.createBufferSource();
     source.buffer = layer.buffer;
-    source.playbackRate.value = layer.speed ?? 1.0;
+    source.playbackRate.value = (layer.speed ?? 1.0) * this.masterPitch;
     source.connect(layer.gainNode);
 
     const start = layer.regionStart ?? 0;
@@ -169,7 +170,7 @@ export class AudioEngine {
     const source = this.ctx.createBufferSource();
     source.buffer = layer.buffer;
     source.loop = false;
-    source.playbackRate.value = layer.speed ?? 1.0;
+    source.playbackRate.value = (layer.speed ?? 1.0) * this.masterPitch;
     source.connect(layer.gainNode);
 
     const start = layer.regionStart ?? 0;
@@ -231,11 +232,26 @@ export class AudioEngine {
     if (!layer) return;
 
     layer.speed = rate;
+    const effective = rate * this.masterPitch;
     if (layer.source) {
       layer.source.playbackRate.linearRampToValueAtTime(
-        rate,
+        effective,
         this.ctx.currentTime + fadeTime
       );
+    }
+  }
+
+  // Set master pitch multiplier — affects all playing layers
+  setMasterPitch(pitch, fadeTime = 0.3) {
+    this.masterPitch = pitch;
+    for (const [, layer] of this.layers) {
+      const effective = (layer.speed ?? 1.0) * pitch;
+      if (layer.source) {
+        layer.source.playbackRate.linearRampToValueAtTime(
+          effective,
+          this.ctx.currentTime + fadeTime
+        );
+      }
     }
   }
 

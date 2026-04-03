@@ -294,13 +294,10 @@ export default function App() {
     if (!engine?.initialized) return;
 
     const alt = sceneData.altitude ?? 0;
-    const rate = pitchMin + (alt / 1000) * (pitchMax - pitchMin);
-    const clamped = Math.max(0.1, Math.min(4.0, rate));
+    const pitch = pitchMin + (alt / 1000) * (pitchMax - pitchMin);
+    const clamped = Math.max(0.1, Math.min(4.0, pitch));
 
-    // Apply to all layers
-    for (const [id] of engine.layers) {
-      engine.setLayerSpeed(id, clamped);
-    }
+    engine.setMasterPitch(clamped);
   }, [sceneData.altitude, pitchMin, pitchMax]);
 
   // ─── GROUP SCENE TRIGGERS ────────────────────────────────
