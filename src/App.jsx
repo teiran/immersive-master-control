@@ -31,6 +31,10 @@ export default function App() {
   const [godotLog, setGodotLog] = useState([]);
   const sceneDataRef = useRef(sceneData);
 
+  // ─── PITCH (altitude) ────────────────────────────────────
+  const [pitchMin, setPitchMin] = useState(0.8);
+  const [pitchMax, setPitchMax] = useState(1.5);
+
   // ─── WIND ───────────────────────────────────────────────
   const [windMode, setWindMode] = useState('auto');
   const [windIntensity, setWindIntensity] = useState(30);
@@ -97,6 +101,8 @@ export default function App() {
         if (saved.tracks) setTracks(saved.tracks);
         if (saved.trackGroups) setTrackGroups(saved.trackGroups);
         if (saved.masterVolume != null) setMasterVolume(saved.masterVolume);
+        if (saved.pitchMin != null) setPitchMin(saved.pitchMin);
+        if (saved.pitchMax != null) setPitchMax(saved.pitchMax);
         if (saved.windMode) setWindMode(saved.windMode);
         if (saved.windIntensity != null) setWindIntensity(saved.windIntensity);
         if (saved.windSendInterval != null) setWindSendInterval(saved.windSendInterval);
@@ -205,6 +211,8 @@ export default function App() {
         })),
         trackGroups,
         masterVolume,
+        pitchMin,
+        pitchMax,
         windMode,
         windIntensity,
         windSendInterval,
@@ -214,7 +222,7 @@ export default function App() {
         scentCycleMs,
       }).catch(() => {});
     }, 2000);
-  }, [tracks, trackGroups, masterVolume, windMode, windIntensity, windSendInterval, scentMode, activeScent, scentThreshold, scentCycleMs]);
+  }, [tracks, trackGroups, masterVolume, pitchMin, pitchMax, windMode, windIntensity, windSendInterval, scentMode, activeScent, scentThreshold, scentCycleMs]);
 
   // ─── AUDIO ENGINE SYNC ─────────────────────────────────
   useEffect(() => {
@@ -286,14 +294,14 @@ export default function App() {
     if (!engine?.initialized) return;
 
     const alt = sceneData.altitude ?? 0;
-    const rate = 0.8 + (alt / 1000) * 0.7; // 0→0.8, 500→1.15, 1000→1.5
-    const clamped = Math.max(0.5, Math.min(2.0, rate));
+    const rate = pitchMin + (alt / 1000) * (pitchMax - pitchMin);
+    const clamped = Math.max(0.1, Math.min(4.0, rate));
 
     // Apply to all layers
     for (const [id] of engine.layers) {
       engine.setLayerSpeed(id, clamped);
     }
-  }, [sceneData.altitude]);
+  }, [sceneData.altitude, pitchMin, pitchMax]);
 
   // ─── GROUP SCENE TRIGGERS ────────────────────────────────
   // When a group has a sceneTrigger set, play next track on value change
@@ -784,6 +792,8 @@ export default function App() {
           connected={godotConnected}
           sceneData={sceneData}
           godotLog={godotLog}
+          pitchMin={pitchMin} setPitchMin={setPitchMin}
+          pitchMax={pitchMax} setPitchMax={setPitchMax}
         />
 
         {/* Center */}

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Panel } from './ui.jsx';
+import { Panel, NumberInput } from './ui.jsx';
 import { theme, fonts } from '../theme.js';
 
 const PLANT_TYPES = [
@@ -8,8 +8,10 @@ const PLANT_TYPES = [
   { key: 'eucalyptus', label: 'Eukalyptus', color: '#7ca5b8', icon: '🌿' },
 ];
 
-export function GodotPanel({ connected, sceneData, godotLog }) {
+export function GodotPanel({ connected, sceneData, godotLog, pitchMin, setPitchMin, pitchMax, setPitchMax }) {
   const total = (sceneData.flowers || 0) + (sceneData.evergreen || 0) + (sceneData.eucalyptus || 0);
+  const alt = sceneData.altitude ?? 0;
+  const currentPitch = pitchMin + (alt / 1000) * (pitchMax - pitchMin);
 
   return (
     <Panel title="Godot Scene" icon="🌿" status={connected ? 'connected' : 'error'}>
@@ -30,13 +32,37 @@ export function GodotPanel({ connected, sceneData, godotLog }) {
         ))}
       </div>
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
-        <span style={{ fontSize: 10, color: theme.textDim }}>
-          Total: {total} plants
-        </span>
-        <span style={{ fontSize: 10, fontFamily: fonts.mono, color: theme.accent }}>
-          Alt: {sceneData.altitude ?? 0} — Pitch: {(0.8 + ((sceneData.altitude ?? 0) / 1000) * 0.7).toFixed(2)}x
-        </span>
+      <div style={{ fontSize: 10, color: theme.textDim, marginTop: 4 }}>
+        Total: {total} plants
+      </div>
+
+      {/* Altitude → Pitch */}
+      <div style={{
+        background: theme.bg, borderRadius: 4, padding: 8, marginTop: 4,
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+          <span style={{ fontSize: 9, color: theme.textDim, letterSpacing: '0.1em', textTransform: 'uppercase' }}>
+            Altitude → Pitch
+          </span>
+          <span style={{ fontSize: 12, fontFamily: fonts.mono, fontWeight: 700, color: theme.accent }}>
+            {currentPitch.toFixed(2)}x
+          </span>
+        </div>
+        <div style={{
+          height: 4, background: theme.panelBorder, borderRadius: 2, overflow: 'hidden', marginBottom: 6,
+        }}>
+          <div style={{
+            width: `${(alt / 1000) * 100}%`, height: '100%', borderRadius: 2,
+            background: theme.accent, transition: 'width 0.3s',
+          }} />
+        </div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <NumberInput label="Low" value={pitchMin} onChange={setPitchMin} min={0.1} max={2.0} step={0.05} />
+          <NumberInput label="High" value={pitchMax} onChange={setPitchMax} min={0.1} max={4.0} step={0.05} />
+          <span style={{ fontSize: 9, color: theme.textDim, alignSelf: 'center' }}>
+            Alt: {alt}
+          </span>
+        </div>
       </div>
 
       {/* Incoming data log */}
