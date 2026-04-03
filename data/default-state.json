@@ -143,7 +143,7 @@
       "type": "loop",
       "color": "#c474a0",
       "playMode": "random",
-      "currentIndex": 2,
+      "currentIndex": 6,
       "volume": 80,
       "muted": false,
       "playing": true,
@@ -295,11 +295,11 @@
     }
   ],
   "masterVolume": 80,
-  "windMode": "manual",
+  "windMode": "auto",
   "windIntensity": 74,
   "windSendInterval": 2300,
   "scentMode": "auto",
-  "activeScent": "eucalyptus",
+  "activeScent": "off",
   "scentThreshold": 177,
   "scentCycleMs": 4000
 }
