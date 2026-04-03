@@ -30,8 +30,13 @@ export function GodotPanel({ connected, sceneData, godotLog }) {
         ))}
       </div>
 
-      <div style={{ fontSize: 10, color: theme.textDim, marginTop: 4 }}>
-        Total: {total} plants
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
+        <span style={{ fontSize: 10, color: theme.textDim }}>
+          Total: {total} plants
+        </span>
+        <span style={{ fontSize: 10, fontFamily: fonts.mono, color: theme.accent }}>
+          Alt: {sceneData.altitude ?? 0} — Pitch: {(0.8 + ((sceneData.altitude ?? 0) / 1000) * 0.7).toFixed(2)}x
+        </span>
       </div>
 
       {/* Incoming data log */}
