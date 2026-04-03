@@ -286,7 +286,7 @@ export default function App() {
     if (!engine?.initialized) return;
 
     const alt = sceneData.altitude ?? 0;
-    const rate = 0.8 + (alt / 10) * 0.7; // 0→0.8, 5→1.15, 10→1.5
+    const rate = 0.8 + (alt / 1000) * 0.7; // 0→0.8, 500→1.15, 1000→1.5
     const clamped = Math.max(0.5, Math.min(2.0, rate));
 
     // Apply to all layers
