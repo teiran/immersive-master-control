@@ -32,6 +32,7 @@ export default function App() {
   const sceneDataRef = useRef(sceneData);
 
   // ─── PITCH (altitude) ────────────────────────────────────
+  const [pitchEnabled, setPitchEnabled] = useState(true);
   const [pitchMin, setPitchMin] = useState(0.8);
   const [pitchMax, setPitchMax] = useState(1.5);
 
@@ -101,6 +102,7 @@ export default function App() {
         if (saved.tracks) setTracks(saved.tracks);
         if (saved.trackGroups) setTrackGroups(saved.trackGroups);
         if (saved.masterVolume != null) setMasterVolume(saved.masterVolume);
+        if (saved.pitchEnabled != null) setPitchEnabled(saved.pitchEnabled);
         if (saved.pitchMin != null) setPitchMin(saved.pitchMin);
         if (saved.pitchMax != null) setPitchMax(saved.pitchMax);
         if (saved.windMode) setWindMode(saved.windMode);
@@ -211,6 +213,7 @@ export default function App() {
         })),
         trackGroups,
         masterVolume,
+        pitchEnabled,
         pitchMin,
         pitchMax,
         windMode,
@@ -222,7 +225,7 @@ export default function App() {
         scentCycleMs,
       }).catch(() => {});
     }, 2000);
-  }, [tracks, trackGroups, masterVolume, pitchMin, pitchMax, windMode, windIntensity, windSendInterval, scentMode, activeScent, scentThreshold, scentCycleMs]);
+  }, [tracks, trackGroups, masterVolume, pitchEnabled, pitchMin, pitchMax, windMode, windIntensity, windSendInterval, scentMode, activeScent, scentThreshold, scentCycleMs]);
 
   // ─── AUDIO ENGINE SYNC ─────────────────────────────────
   useEffect(() => {
@@ -293,12 +296,16 @@ export default function App() {
     const engine = audioEngineRef.current;
     if (!engine?.initialized) return;
 
+    if (!pitchEnabled) {
+      engine.setMasterPitch(1.0);
+      return;
+    }
     const alt = sceneData.altitude ?? 0;
     const pitch = pitchMin + (alt / 400) * (pitchMax - pitchMin);
     const clamped = Math.max(0.1, Math.min(4.0, pitch));
 
     engine.setMasterPitch(clamped);
-  }, [sceneData.altitude, pitchMin, pitchMax]);
+  }, [sceneData.altitude, pitchMin, pitchMax, pitchEnabled]);
 
   // ─── GROUP SCENE TRIGGERS ────────────────────────────────
   // When a group has a sceneTrigger set, play next track on value change
@@ -789,6 +796,7 @@ export default function App() {
           connected={godotConnected}
           sceneData={sceneData}
           godotLog={godotLog}
+          pitchEnabled={pitchEnabled} setPitchEnabled={setPitchEnabled}
           pitchMin={pitchMin} setPitchMin={setPitchMin}
           pitchMax={pitchMax} setPitchMax={setPitchMax}
         />

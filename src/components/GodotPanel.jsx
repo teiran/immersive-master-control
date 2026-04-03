@@ -8,7 +8,7 @@ const PLANT_TYPES = [
   { key: 'eucalyptus', label: 'Eukalyptus', color: '#7ca5b8', icon: '🌿' },
 ];
 
-export function GodotPanel({ connected, sceneData, godotLog, pitchMin, setPitchMin, pitchMax, setPitchMax }) {
+export function GodotPanel({ connected, sceneData, godotLog, pitchMin, setPitchMin, pitchMax, setPitchMax, pitchEnabled, setPitchEnabled }) {
   const total = (sceneData.flowers || 0) + (sceneData.evergreen || 0) + (sceneData.eucalyptus || 0);
   const alt = sceneData.altitude ?? 0;
   const currentPitch = pitchMin + (alt / 400) * (pitchMax - pitchMin);
@@ -41,11 +41,14 @@ export function GodotPanel({ connected, sceneData, godotLog, pitchMin, setPitchM
         background: theme.bg, borderRadius: 4, padding: 8, marginTop: 4,
       }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-          <span style={{ fontSize: 9, color: theme.textDim, letterSpacing: '0.1em', textTransform: 'uppercase' }}>
-            Altitude → Pitch
-          </span>
-          <span style={{ fontSize: 12, fontFamily: fonts.mono, fontWeight: 700, color: theme.accent }}>
-            {currentPitch.toFixed(2)}x
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+            <input type="checkbox" checked={pitchEnabled} onChange={e => setPitchEnabled(e.target.checked)} />
+            <span style={{ fontSize: 9, color: pitchEnabled ? theme.textDim : theme.danger, letterSpacing: '0.1em', textTransform: 'uppercase' }}>
+              Altitude → Pitch
+            </span>
+          </label>
+          <span style={{ fontSize: 12, fontFamily: fonts.mono, fontWeight: 700, color: pitchEnabled ? theme.accent : theme.textDim }}>
+            {pitchEnabled ? currentPitch.toFixed(2) + 'x' : 'OFF'}
           </span>
         </div>
         <div style={{
